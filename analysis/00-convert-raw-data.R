@@ -12,15 +12,17 @@ file_path <- dir("data/raw")
 file_path <- file_path[grep("rainfall", file_path, invert = TRUE)]
 
 # pull out a list of sites and species from the file names
-sites <- file_path %>%
+sites_list <- sites <- file_path %>%
   sapply(strsplit, split = "_") %>%
-  sapply(function(x) x[2]) %>%
+  sapply(function(x) x[2])
+sites <- sites_list %>%
   unique %>%
   sort %>%
   tibble
-species <- file_path %>%
+species_list <- file_path %>%
   sapply(strsplit, split = "_") %>%
-  sapply(function(x) x[1]) %>%
+  sapply(function(x) x[1]) 
+species <- species_list %>%
   unique %>%
   sort %>%
   tibble
@@ -32,6 +34,11 @@ write_csv(species, path = "data/converted/species-list.csv", col_names = FALSE)
 # load the data sets and save them in the vector `surv_data`
 surv_data <- paste0("data/raw/", file_path) %>%
   map(function(x) read_excel(path = x))
+
+# add in site and species IDs to the data sets
+surv_data <- list(surv_data, sites_list, species_list) %>% pmap(
+  function(x, y, z) add_column(x, site = rep(y, nrow(x)), species = rep(z, nrow(x)))
+)
 
 # write to rds file
 surv_data %>% saveRDS(
