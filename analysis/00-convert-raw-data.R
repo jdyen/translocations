@@ -1,9 +1,8 @@
-# load all raw data sets and convert to CSV
+# load all raw data sets and convert to CSV or rds
 
 # need a few R packages to get everything running
 library(tidyverse)
 library(readxl)
-library(lubridate)
 
 # we want a list of all the raw data files
 file_path <- dir("data/raw")
@@ -34,14 +33,7 @@ write_csv(species, path = "data/converted/species-list.csv", col_names = FALSE)
 surv_data <- paste0("data/raw/", file_path) %>%
   map(function(x) read_excel(path = x))
 
-# write to CSVs
-file_names <- file_path %>%
-  strsplit(split = "\\.") %>%
-  map(function(x) x[seq_len(length(x) - 1)]) %>%
-  map(paste0) %>%
-  map(gsub, pattern = "\\ ", replacement = "-") %>%
-  map(paste0, ".csv")
-surv_data %>% map2(
-  file_names,
-  function(x, y) write_csv(x, path = paste0("data/converted/", y))
+# write to rds file
+surv_data %>% saveRDS(
+  file = "data/converted/survival-data.rds"
 )
