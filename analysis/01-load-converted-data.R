@@ -13,6 +13,8 @@ surv_data <- surv_data %>% map(
 )
 ## Date column wrong in
 # c(68, 63, 59, 49, 40, 36, 19, 16, 15, 14, 13, 12)
+# c(65, 64, 61, 58, 53, 50, 39, 28, 9, 7, 6, 2)
+
 
 ## use
 # surv_data[-8] %>% map(function(x) x %>% select("Health") %>% unique)
@@ -26,13 +28,33 @@ surv_data <- surv_data %>% map(
   alive = if_else(Health == "Dead", 0, 1)
 )
 
+# temporary fix: cast columns to character or numeric, adding NAs as needed
+surv_data <- surv_data %>% map(
+  mutate,
+  `KPBG no.` = as.character(`KPBG no.`),
+  `Planting Date` = as.character(`Planting Date`),
+  Date = as.character(Date),
+  Height = as.numeric(Height),
+  `Crown 1` = as.numeric(`Crown 1`),
+  `Crown 2` = as.numeric(`Crown 2`),
+  `Mean Crown` = as.numeric(`Mean Crown`),
+  `Pres/abs of buds` = as.character(`Pres/abs of buds`),
+  `Source Population` = as.character(`Source Population`),
+  `No. of bud inflorescences` = as.numeric(`No. of bud inflorescences`),
+  `No. flower inflorescences` = as.numeric(`No. flower inflorescences`),
+  `Plant no.` = as.character(`Plant no.`),
+  `TFSC Accession no.` = as.numeric(`TFSC Accession no.`),
+  `No. of fruit` = as.numeric(`No. of fruit`),
+  `Comments` = as.character(`Comments`)
+)
+
 # now those are sorted, we can combine all five data sets into one big data set
 #  (automatically matching columns or adding new columns if needed)
 surv_data <- surv_data %>% bind_rows
 
 # add a combined site-by-planting date column to the species data
 surv_data <- surv_data %>% mutate(
-  site_by_planting <- paste(site, planting_date_formatted, sep = "_")
+  site_by_planting = paste(site, planting_date_formatted, sep = "_")
 )
 
 # we need to load the rainfall data as well
@@ -50,18 +72,17 @@ rain_data <- rain_data %>%
             rainfall_30days_prior_mm = median(rainfall_30days_prior_mm))
 
 # add up the deviations from years 1 and 2
-rainfall_deviations <- rainfall_deviations %>% mutate(
+rain_data <- rain_data %>% mutate(
   rainfall_deviation_mm = rainfall_deviation_year1_mm + rainfall_deviation_year2_mm
 )
 
 # add a combined site/planting date to give "cohort" for the rainfall data
 rain_data <- rain_data %>% mutate(
-  site_by_planting = paste(site, planting_date_formatted, sep = "_")
+  site_by_planting = paste(site, date_formatted, sep = "_")
 )
 
 # let's join the planting and rainfall data based on the `site_by_planting` column
 data_set <- surv_data %>% left_join(rain_data, by = "site_by_planting")
-
 
 # now we want to reduce to the final alive observation of each individual
 #  maybe filter to only alive, then pull out max?
