@@ -11,12 +11,8 @@ surv_data <- surv_data %>% map(
   planting_date_formatted = parse_date_time(`Planting Date`, orders = c("ymd_HMS", "ymd", "dmy")),
   date_formatted = parse_date_time(Date, orders = c("ymd_HMS", "ymd", "dmy"))
 )
-# surv_data[[1]] <- surv_data[[1]] %>% mutate(
-#   planting_date_formatted = parse_date_time(`Planting Date`, orders = c("ymd_HMS", "ymd", "dmy")),
-#   date_formatted = parse_date_time(Date, orders = c("ymd_HMS", "ymd", "dmy"))
-# )
 ## Date column wrong in
-# 51, 46, 41, 42, 32, 23, 19
+# c(68, 63, 59, 49, 40, 36, 19, 16, 15, 14, 13, 12)
 
 ## use
 # surv_data[-8] %>% map(function(x) x %>% select("Health") %>% unique)
