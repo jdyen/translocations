@@ -4,6 +4,9 @@
 library(tidyverse)
 library(lubridate)
 
+# load helper functions
+source("R/functions.R")
+
 # load survival data
 surv_data <- readRDS("data/converted/survival-data.rds")
 surv_data <- surv_data %>% map(
@@ -11,14 +14,10 @@ surv_data <- surv_data %>% map(
   planting_date_formatted = parse_date_time(`Planting Date`, orders = c("ymd_HMS", "ymd", "dmy")),
   date_formatted = parse_date_time(Date, orders = c("ymd_HMS", "ymd", "dmy"))
 )
-## Date column wrong in
-# c(68, 63, 59, 49, 40, 36, 19, 16, 15, 14, 13, 12)
-# c(65, 64, 61, 58, 53, 50, 39, 28, 9, 7, 6, 2)
 
-
-## use
-# surv_data[-8] %>% map(function(x) x %>% select("Health") %>% unique)
-## to work out which levels need tidying
+# some of health levels are incorrectly entered, let's fix them
+surv_data <- surv_data %>% map(recode_levels)
+surv_data <- surv_data %>% map(na_is_logical)
 
 # now we want to create new columns in our data that tell us when each plant was
 #   surveyed, and whether it was alive or dead at each observation
@@ -28,29 +27,92 @@ surv_data <- surv_data %>% map(
   alive = if_else(Health == "Dead", 0, 1)
 )
 
-# temporary fix: cast columns to character or numeric, adding NAs as needed
+# cast columns to single class (character or numeric), adding NAs as needed
 surv_data <- surv_data %>% map(
   mutate,
-  `KPBG no.` = as.character(`KPBG no.`),
+  planted = if_else(`Planted/ seedling recruit` == "Planted",
+                    "planted",
+                    "natural_recruit"),
   `Planting Date` = as.character(`Planting Date`),
   Date = as.character(Date),
-  Height = as.numeric(Height),
-  `Crown 1` = as.numeric(`Crown 1`),
-  `Crown 2` = as.numeric(`Crown 2`),
-  `Mean Crown` = as.numeric(`Mean Crown`),
-  `Pres/abs of buds` = as.character(`Pres/abs of buds`),
-  `Source Population` = as.character(`Source Population`),
-  `No. of bud inflorescences` = as.numeric(`No. of bud inflorescences`),
-  `No. flower inflorescences` = as.numeric(`No. flower inflorescences`),
   `Plant no.` = as.character(`Plant no.`),
+  plant_no = as.character(`Plant no.`),
+  `KPBG no.` = as.character(`KPBG no.`),
+  kpbg_no = as.character(`KPBG no.`),
   `TFSC Accession no.` = as.numeric(`TFSC Accession no.`),
+  tfsc_accession_no = as.numeric(`TFSC Accession no.`),
+  `Source Population` = as.character(`Source Population`),
+  source_population = as.character(`Source Population`),
+  propagule_type = `Propagule type`,
+  replicate = Replicate,
+  Height = as.numeric(Height),
+  height = as.numeric(Height),
+  `Crown 1` = as.numeric(`Crown 1`),
+  crown_one = as.numeric(`Crown 1`),
+  `Crown 2` = as.numeric(`Crown 2`),
+  crown_two = as.numeric(`Crown 2`),
+  `Mean Crown` = as.numeric(`Mean Crown`),
+  mean_crown = as.numeric(`Mean Crown`),
+  `Pres/abs of buds` = as.character(`Pres/abs of buds`),
+  buds_present = as.character(`Pres/abs of buds`),
+  `No. of bud inflorescences` = as.numeric(`No. of bud inflorescences`),
+  bud_inflorescences_no = as.numeric(`No. of bud inflorescences`),
+  `No. flower inflorescences` = as.numeric(`No. flower inflorescences`),
+  flower_inflorescences_no = as.numeric(`No. flower inflorescences`),
   `No. of fruit` = as.numeric(`No. of fruit`),
-  `Comments` = as.character(`Comments`)
+  fruit_no = as.numeric(`No. of fruit`),
+  reproductive = Reproductive,
+  health = Health,
+  `Comments` = as.character(`Comments`),
+  comments = as.character(`Comments`)
 )
 
 # now those are sorted, we can combine all five data sets into one big data set
 #  (automatically matching columns or adding new columns if needed)
 surv_data <- surv_data %>% bind_rows
+
+# tidy data set by renaming variables and dropping unused variables
+surv_data <- surv_data %>% transmute(
+  planted = planted,
+  species = species,
+  site = site,
+  planting_date = planting_date_formatted,
+  survey_date = date_formatted,
+  plant_no = plant_no,
+  kpbg_no = kpbg_no,
+  tfsc_accession_no = tfsc_accession_no,
+  source_population = source_population,
+  propagule_type = propagule_type,
+  replicate = replicate,
+  treatment_water = Treatment_water,
+  treatment_mulch = Treatment_mulch,
+  treatment_planting_time = `Treatment_planting time`,
+  treatment_fence = Treatment_fence,
+  treatment_seedling_age = `Treatment_seedling age`,
+  treatment_shade = Treatment_Shade,
+  treatment_terra_cottem = Treatment_TerraCottem,
+  treatment_pre_planting_burn = `Treatment_Pre planting burn`,
+  management_water = Management_water,
+  management_fence = Management_fence,
+  days = days,
+  alive = alive,
+  height = height,
+  crown_one = crown_one,
+  crown_two = crown_two,
+  mean_crown = mean_crown,
+  buds_present = buds_present,
+  bud_inflorescences_no = bud_inflorescences_no,
+  flower_inflorescences_no = flower_inflorescences_no,
+  fruit_no = fruit_no,
+  reproductive = reproductive,
+  health = health,
+  comments = comments
+)
+
+# there are 17 NAs in the planted column; these are natural recruits
+surv_data <- surv_data %>% mutate(
+  planted = if_else(is.na(planted), "natural_recruit", planted)
+)
 
 # add a combined site-by-planting date column to the species data
 surv_data <- surv_data %>% mutate(
