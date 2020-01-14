@@ -1,20 +1,16 @@
 # need a few R packages to get everything running
-library(rstan)
+library(brms)
 
-# we fit the model in Stan, which is a separate piece of software
-#   The model is defined in a separate script: called "survival-mod.stan" in this case
-mod_file <- "src/survival-model.stan"
+# load the pre-compiled data set
+survival_data <- readRDS("data/compiled/survival-data.rds")
 
-## CURRENTLY STORES PREDICTED VALUES OF Y
-##   Could drop this and save some memory?
+# we can use the brms package to fit a survival model
 
-# we now need to tell Stan to find that model script, compile it, and fit the model
-#   This is a Bayesian model, so we need to tell it how many iterations, chains, and 
-#   some other settings too
-surv_mod <- stan(file = mod_file, data = mod_data,
-                 iter = 20000, thin = 2,
-                 chains = 4, cores = 4,
-                 control = list(adapt_delta = 0.8))
+### cens(censored) where censored is "left", "none", "right", "interval" or
+###    -1, 0, 1, 2.
+survival_model <- brm(days | cens(censored) ~ (1 | species) + (1 | site),
+                      data = survival_data,
+                      family = lognormal())
 
 # the Stan outputs aren't directly setup to make plots
 #    We can reformat them and pull out the parameters we care about most
