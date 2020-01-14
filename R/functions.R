@@ -31,6 +31,42 @@ na_is_logical <- function(x) {
   )
 }
 
+# how long did the individual survive?
+calculate_days_survived <- function(days, alive) {
+
+  # what is the final alive/dead state of an individual?
+  final_state <- alive[which.max(days)]
+  
+  # is an individual alive at last sighting?
+  if (final_state == 1) {
+    out <- max(days)
+  } else {  # if not, which is the first dead observation?
+    out <- min(days[alive == 0])
+  }
+
+  # return
+  out
+
+}
+
+# is an individual alive at last sighting?
+is_censored <- function(days, alive) {
+  
+  # what is the final alive/dead state of an individual?
+  final_state <- alive[which.max(days)]
+
+  # is an individual alive at last sighting?
+  if (final_state == 1) {
+    censored <- 1
+  } else {  # if not, it's not censored
+    censored <- 0
+  }
+  
+  # return
+  censored
+  
+}
+
 # function to calculate survival curve from fitted parameters
 surv_fn <- function(t, alpha, mu, beta, x) {
   sigma_i <- c(exp(-1 * (mu + beta %*% x) / alpha))
