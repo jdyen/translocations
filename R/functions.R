@@ -67,8 +67,12 @@ is_censored <- function(days, alive) {
   
 }
 
-# function to calculate survival curve from fitted parameters
-surv_fn <- function(t, alpha, mu, beta, x) {
-  sigma_i <- c(exp(-1 * (mu + beta %*% x) / alpha))
-  exp(- (t / sigma_i)^alpha)
+# sometimes treatments are entered with a mix of NA and true
+#   treatment values within individuals. Calculate the unique
+#   treatment and ditch the NA
+unique_no_na <- function(x) {
+  out <- unique(x)
+  if (length(out) > 1)
+    out <- out[!is.na(out)]
+  out
 }
