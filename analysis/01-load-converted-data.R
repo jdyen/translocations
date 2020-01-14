@@ -8,27 +8,27 @@ library(lubridate)
 source("R/functions.R")
 
 # load survival data
-surv_data <- readRDS("data/converted/survival-data.rds")
-surv_data <- surv_data %>% map(
+translocation_data <- readRDS("data/converted/translocation-data.rds")
+translocation_data <- translocation_data %>% map(
   mutate,
   planting_date_formatted = parse_date_time(`Planting Date`, orders = c("ymd_HMS", "ymd", "dmy")),
   date_formatted = parse_date_time(Date, orders = c("ymd_HMS", "ymd", "dmy"))
 )
 
 # some of health levels are incorrectly entered, let's fix them
-surv_data <- surv_data %>% map(recode_levels)
-surv_data <- surv_data %>% map(na_is_logical)
+translocation_data <- translocation_data %>% map(recode_levels)
+translocation_data <- translocation_data %>% map(na_is_logical)
 
 # now we want to create new columns in our data that tell us when each plant was
 #   surveyed, and whether it was alive or dead at each observation
-surv_data <- surv_data %>% map(
+translocation_data <- translocation_data %>% map(
   mutate,
   days = (planting_date_formatted %--% date_formatted) %>% magrittr::divide_by(ddays(1)),
   alive = if_else(Health == "Dead", 0, 1)
 )
 
 # cast columns to single class (character or numeric), adding NAs as needed
-surv_data <- surv_data %>% map(
+translocation_data <- translocation_data %>% map(
   mutate,
   planted = if_else(`Planted/ seedling recruit` == "Planted",
                     "planted",
@@ -69,10 +69,10 @@ surv_data <- surv_data %>% map(
 
 # now those are sorted, we can combine all five data sets into one big data set
 #  (automatically matching columns or adding new columns if needed)
-surv_data <- surv_data %>% bind_rows
+translocation_data <- translocation_data %>% bind_rows
 
 # tidy data set by renaming variables and dropping unused variables
-surv_data <- surv_data %>% transmute(
+translocation_data <- translocation_data %>% transmute(
   planted = planted,
   species = species,
   site = site,
@@ -110,53 +110,47 @@ surv_data <- surv_data %>% transmute(
 )
 
 # there are 17 NAs in the planted column; these are natural recruits
-surv_data <- surv_data %>% mutate(
+translocation_data <- translocation_data %>% mutate(
   planted = if_else(is.na(planted), "natural_recruit", planted)
 )
 
-# add a combined site-by-planting date column to the species data
-surv_data <- surv_data %>% mutate(
-  site_by_planting = paste(site, planting_date_formatted, sep = "_")
-)
+# make a new data set that identifies the first "Dead" record for each individual
+#   or marks individuals alive at latest survey as "Censored"
+survival_data <- translocation_data %>% 
+  filter(!is.na(plant_no), !is.na(days), !is.na(alive)) %>%
+  group_by(species, site, plant_no) %>%
+  summarise(censored = is_censored(days = days, alive = alive),
+            days = calculate_days_survived(days = days, alive = alive))
+
+# some things were never observed a second time; remove them
+survival_data <- survival_data %>% filter(days > 0)
 
 # we need to load the rainfall data as well
-rain_data <- read_csv("data/converted/rainfall-data.csv")
-rain_data <- rain_data %>% mutate(
-  date_formatted = parse_date_time(planting_date, orders = c("dmy_HM", "dmy"))
-)
+# rain_data <- read_csv("data/converted/rainfall-data.csv")
+# rain_data <- rain_data %>% mutate(
+#   date_formatted = parse_date_time(planting_date, orders = c("dmy_HM", "dmy"))
+# )
 
 # calculate average rainfall and total rainfall deviations in each year following
 #   planting (for each planting date and site)
-rain_data <- rain_data %>%
-  group_by(site, date_formatted) %>%
-  summarise(rainfall_deviation_year1_mm = sum(monthly_deviation_from_mean_year1_mm),
-            rainfall_deviation_year2_mm = sum(monthly_deviation_from_mean_year2_mm),
-            rainfall_30days_prior_mm = median(rainfall_30days_prior_mm))
+# rain_data <- rain_data %>%
+#   group_by(site, date_formatted) %>%
+#   summarise(rainfall_deviation_year1_mm = sum(monthly_deviation_from_mean_year1_mm),
+#             rainfall_deviation_year2_mm = sum(monthly_deviation_from_mean_year2_mm),
+#             rainfall_30days_prior_mm = median(rainfall_30days_prior_mm))
 
 # add up the deviations from years 1 and 2
-rain_data <- rain_data %>% mutate(
-  rainfall_deviation_mm = rainfall_deviation_year1_mm + rainfall_deviation_year2_mm
-)
+# rain_data <- rain_data %>% mutate(
+#   rainfall_deviation_mm = rainfall_deviation_year1_mm + rainfall_deviation_year2_mm
+# )
 
 # add a combined site/planting date to give "cohort" for the rainfall data
-rain_data <- rain_data %>% mutate(
-  site_by_planting = paste(site, date_formatted, sep = "_")
-)
+# rain_data <- rain_data %>% mutate(
+#   site_by_planting = paste(site, date_formatted, sep = "_")
+# )
 
 # let's join the planting and rainfall data based on the `site_by_planting` column
-data_set <- surv_data %>% left_join(rain_data, by = "site_by_planting")
-
-# now we want to reduce to the final alive observation of each individual
-#  maybe filter to only alive, then pull out max?
-#  but we actually want to record first "dead" record not last "alive" record
-
-
-## need to add a "censored" column if individual alive at final obs
-
-
-## filter out NAs and anything observed only at first planting and never again
-
-
+# data_set <- surv_data %>% left_join(rain_data, by = "site_by_planting")
 
 ## create model-ready data set and save
 # First, we make up a matrix of predictor variables in "design matrix" format
@@ -164,15 +158,7 @@ data_set <- surv_data %>% left_join(rain_data, by = "site_by_planting")
 ## - planted vs natural recruits (Fixed?)
 ## - treatments (Fixed?) (list these from all data sets, will be easier after left_join)
 ## - source population (Random?)
-design_mat <- model.matrix(~ spp, data = data_test)
+survival_predictors <- model.matrix(~ species, data = survival_data)
 
 # now we can combine all of the bits and pieces into our model
-alive <- data_set$alive == 1  # (check only 0/1 possible)
-mod_data <- list(Nobs = sum(!alive),              # number of individuals that died
-                 Ncen = sum(alive),              # number that were alive at last visit
-                 M_bg = ncol(design_mat),                          # number of covariates
-                 yobs = data_test$days[!alive],   # when was an individual first recorded as dead?
-                 ycen = data_test$days[alive],   # when was a still-alive individual last visited?
-                 Xobs_bg = design_mat[!alive, ],  # predictors for the individuals that died
-                 Xcen_bg = design_mat[alive, ])  # predictors for individuals that are still alive
-saveRDS(mod_data, file = "data/compiled/model-data.rds")
+saveRDS(survival_data, file = "data/compiled/survival-data.rds")
