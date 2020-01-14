@@ -118,47 +118,56 @@ translocation_data <- translocation_data %>% mutate(
 #   or marks individuals alive at latest survey as "Censored"
 survival_data <- translocation_data %>% 
   filter(!is.na(plant_no), !is.na(days), !is.na(alive)) %>%
-  group_by(species, site, plant_no) %>%
+  group_by(species, site, plant_no, planting_date) %>%
   summarise(censored = is_censored(days = days, alive = alive),
-            days = calculate_days_survived(days = days, alive = alive))
+            days = calculate_days_survived(days = days, alive = alive),
+            treatment_water = unique(treatment_water),
+            treatment_mulch = unique(treatment_mulch),
+            treatment_planting_time = unique(treatment_planting_time),
+            treatment_fence = unique(treatment_fence),
+            treatment_seedling_age = unique(treatment_seedling_age),
+            treatment_shade = unique_no_na(treatment_shade),
+            treatment_terra_cottem = unique(treatment_terra_cottem),
+            treatment_pre_planting_burn = unique(treatment_pre_planting_burn),
+            management_water = unique(management_water),
+            management_fence = unique(management_fence))
 
 # some things were never observed a second time; remove them
 survival_data <- survival_data %>% filter(days > 0)
 
 # we need to load the rainfall data as well
-# rain_data <- read_csv("data/converted/rainfall-data.csv")
-# rain_data <- rain_data %>% mutate(
-#   date_formatted = parse_date_time(planting_date, orders = c("dmy_HM", "dmy"))
-# )
+rainfall_data <- read_csv("data/converted/rainfall-data.csv")
+rainfall_data <- rainfall_data %>% mutate(
+  planting_date_formatted = parse_date_time(planting_date, orders = c("ymd_HMS", "ymd"))
+)
 
 # calculate average rainfall and total rainfall deviations in each year following
 #   planting (for each planting date and site)
-# rain_data <- rain_data %>%
-#   group_by(site, date_formatted) %>%
-#   summarise(rainfall_deviation_year1_mm = sum(monthly_deviation_from_mean_year1_mm),
-#             rainfall_deviation_year2_mm = sum(monthly_deviation_from_mean_year2_mm),
-#             rainfall_30days_prior_mm = median(rainfall_30days_prior_mm))
+rainfall_data <- rainfall_data %>%
+  group_by(site, planting_date_formatted) %>%
+  summarise(rainfall_deviation_year1_mm = sum(monthly_deviation_from_mean_year1_mm),
+            rainfall_deviation_year2_mm = sum(monthly_deviation_from_mean_year2_mm),
+            rainfall_30days_prior_mm = median(rainfall_30days_prior_mm))
 
 # add up the deviations from years 1 and 2
-# rain_data <- rain_data %>% mutate(
-#   rainfall_deviation_mm = rainfall_deviation_year1_mm + rainfall_deviation_year2_mm
-# )
+rainfall_data <- rainfall_data %>% mutate(
+  rainfall_deviation_mm = rainfall_deviation_year1_mm + rainfall_deviation_year2_mm
+)
 
-# add a combined site/planting date to give "cohort" for the rainfall data
-# rain_data <- rain_data %>% mutate(
-#   site_by_planting = paste(site, date_formatted, sep = "_")
-# )
+# let's join the survival and rainfall data based on the `site` and
+#   `planting_date` columns
+survival_data <- survival_data %>% left_join(
+  rainfall_data, by = c("site", "planting_date" = "planting_date_formatted")
+)
 
-# let's join the planting and rainfall data based on the `site_by_planting` column
-# data_set <- surv_data %>% left_join(rain_data, by = "site_by_planting")
-
-## create model-ready data set and save
-# First, we make up a matrix of predictor variables in "design matrix" format
-## WORK OUT APPROPRIATE PREDICTORS
-## - planted vs natural recruits (Fixed?)
-## - treatments (Fixed?) (list these from all data sets, will be easier after left_join)
-## - source population (Random?)
-survival_predictors <- model.matrix(~ species, data = survival_data)
-
-# now we can combine all of the bits and pieces into our model
+# now we can save a compiled version of the survival data for use in analyses
 saveRDS(survival_data, file = "data/compiled/survival-data.rds")
+
+# repeat for other data sets (growth, reproduction, recruitment)
+
+## growth: average annual/daily growth per individual? Per observation?
+
+## reproductive: tidy up categories
+
+## recruitment: 1 for species with natural recruits, 0 otherwise
+##    Need to account for time-since-planting somehow
