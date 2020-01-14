@@ -28,8 +28,8 @@ species <- species_list %>%
   tibble
 
 # save these to their own file
-write_csv(sites, path = "data/converted/site-list.csv", col_names = FALSE)
-write_csv(species, path = "data/converted/species-list.csv", col_names = FALSE)
+sites %>% write_csv(path = "data/converted/site-list.csv", col_names = FALSE)
+species %>% write_csv(path = "data/converted/species-list.csv", col_names = FALSE)
 
 # load the data sets and save them in the vector `surv_data`
 translocation_data <- paste0("data/raw/", file_path) %>%
@@ -44,3 +44,21 @@ translocation_data <- list(translocation_data, sites_list, species_list) %>% pma
 translocation_data %>% saveRDS(
   file = "data/converted/translocation-data.rds"
 )
+
+# read in the xlsx version of the rainfall data
+rainfall_data <- read_excel("data/raw/Translocation site longterm rainfall data.xlsx")
+
+# four of the site names in the rainfall data do not match those in the plant data
+rainfall_data$site <- gsub("Gunyidi Townsite_West", "Gunyidi Townsite", rainfall_data$site)
+rainfall_data$site <- gsub("Wongan Hills NR", "Wongan", rainfall_data$site)
+rainfall_data$site <- gsub("Boundary Road", "Boundary Rd", rainfall_data$site)
+rainfall_data$site <- gsub("Mt ManyPeaks NR", "Mt Manypeaks NR", rainfall_data$site)
+
+# the column names of rainfall data are incorrect for monthly deviations
+rainfall_data <- rainfall_data %>% rename(
+  monthly_deviation_from_mean_year1_mm = monthly_deviation_from_mean_year1_mm...10,
+  monthly_deviation_from_mean_year2_mm = monthly_deviation_from_mean_year1_mm...11
+)
+
+# write to CSV
+rainfall_data %>% write_csv(path = "data/converted/rainfall-data.csv")
