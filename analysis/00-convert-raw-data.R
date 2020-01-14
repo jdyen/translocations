@@ -32,15 +32,15 @@ write_csv(sites, path = "data/converted/site-list.csv", col_names = FALSE)
 write_csv(species, path = "data/converted/species-list.csv", col_names = FALSE)
 
 # load the data sets and save them in the vector `surv_data`
-surv_data <- paste0("data/raw/", file_path) %>%
+translocation_data <- paste0("data/raw/", file_path) %>%
   map(function(x) read_excel(path = x))
 
 # add in site and species IDs to the data sets
-surv_data <- list(surv_data, sites_list, species_list) %>% pmap(
+translocation_data <- list(translocation_data, sites_list, species_list) %>% pmap(
   function(x, y, z) add_column(x, site = rep(y, nrow(x)), species = rep(z, nrow(x)))
 )
 
 # write to rds file
-surv_data %>% saveRDS(
-  file = "data/converted/survival-data.rds"
+translocation_data %>% saveRDS(
+  file = "data/converted/translocation-data.rds"
 )
