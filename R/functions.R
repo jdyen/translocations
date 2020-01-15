@@ -76,3 +76,12 @@ unique_no_na <- function(x) {
     out <- out[!is.na(out)]
   out
 }
+
+# calculate survival at time t from fitted values Weibull parameters
+#   (details in vignette(brmsfamilies) and at
+#   discourse.mc-stan.org/t/estimating-survival-curves-with-weibulll-model/6475/3)
+calculate_survival_probability <- function(t, mu, k) {
+  lambda <- exp(mu) / gamma(1 + 1/k) 
+  exp(-((t / lambda) ^ k))
+}
+
