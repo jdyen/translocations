@@ -38,13 +38,13 @@ translocation_data <- translocation_data %>% map(
   `Plant no.` = as.character(`Plant no.`),
   plant_no = as.character(`Plant no.`),
   `KPBG no.` = as.character(`KPBG no.`),
-  kpbg_no = as.character(`KPBG no.`),
-  `TFSC Accession no.` = as.numeric(`TFSC Accession no.`),
+  kpbg_no = as.character(`KPBG no.`),    ## less important than tfsc
+  `TFSC Accession no.` = as.numeric(`TFSC Accession no.`),  ## seed collection batch
   tfsc_accession_no = as.numeric(`TFSC Accession no.`),
-  `Source Population` = as.character(`Source Population`),
+  `Source Population` = as.character(`Source Population`),  ## tfsc can catch different years within source pops
   source_population = as.character(`Source Population`),
   propagule_type = `Propagule type`,
-  replicate = Replicate,
+  replicate = Replicate,  ## should be there with treatments
   Height = as.numeric(Height),
   height = as.numeric(Height),
   `Crown 1` = as.numeric(`Crown 1`),
@@ -61,7 +61,7 @@ translocation_data <- translocation_data %>% map(
   flower_inflorescences_no = as.numeric(`No. flower inflorescences`),
   `No. of fruit` = as.numeric(`No. of fruit`),
   fruit_no = as.numeric(`No. of fruit`),
-  reproductive = Reproductive,
+  reproductive = Reproductive, ## yes for buds
   health = Health,
   `Comments` = as.character(`Comments`),
   comments = as.character(`Comments`)
