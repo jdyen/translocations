@@ -12,27 +12,26 @@ survival_data <- readRDS("data/compiled/survival-data.rds")
 #    The values of `censored` must take one of "left", "none", "right",
 #    "interval" or, equivalently, -1 (left), 0 (none), 1 (right), 2 (interval).
 #    If interval-censored, then an additional value is needed in `cens()`
-#    to define the interval.
+#    to define the upper bound of the interval.
+# Default behaviour is to remove NA rows. Alternatives are to impute
+#    or to model these NA values. Imputation has issues, modelling is
+#    computationally challenging.
 survival_model <- brm(days | cens(censored) ~ 
-                        rainfall_deviation_mm +
-                        rainfall_30days_prior_mm +
-                        management_water +
-                        management_fence +
+                        (rainfall_deviation_mm +
+                           rainfall_30days_prior_mm +
+                           management_water +
+                           management_fence | species) +
                         (1 | source_population) +
-                        (1 | species) + 
                         (1 | site),
                       data = survival_data,
                       family = weibull,
-                      iter = 5000,
+                      iter = 20000,
+                      thin = 10,
                       chains = 4,
                       cores = 4)
 
-## HANDLING NAs -- can remove, add data, or impute within model or prior to model fitting.
-## (default is remove?? (or error??))
 
-## Predictors
-## need source pops
-## rainfall might be missing second year for some recent plantings
+## NEED some summaries to assess bias in NAs. Number removed by species and site?
 
 ## Errors in rstan compilation on OSX Catalina:
 ##    solve by updating Makevars as suggested at
