@@ -174,11 +174,12 @@ survival_data <- survival_data %>% filter(days > 0)
 
 # we want to create a new source pop variable that accounts for
 #   repeated source pop IDs among species. Ditto TFSC accession numbers
+#   and plant numbers
 survival_data <- survival_data %>% mutate(
   source_population = species %>% paste(source_population, sep = "_"),
-  tfsc_accession_no = species %>% paste(tfsc_accession_no, sep = "_")
+  tfsc_accession_no = species %>% paste(tfsc_accession_no, sep = "_"),
+  plant_no_unique = species %>% paste(plant_no, planting_date, sep = "_")
 )
-
 
 # we need to load the rainfall data as well
 rainfall_data <- read_csv("data/converted/rainfall-data.csv")
@@ -208,10 +209,6 @@ survival_data <- survival_data %>% left_join(
 # now we can save a compiled version of the survival data for use in analyses
 saveRDS(survival_data, file = "data/compiled/survival-data.rds")
 
-# repeat for other data sets (growth, reproduction, recruitment)
-
-## growth: average annual/daily growth per individual? Per observation?
-
 # make a new data set that identifies the reproductive state of each individual
 #   at each survey
 reproduction_data <- translocation_data %>% 
@@ -233,6 +230,32 @@ reproduction_data <- translocation_data %>%
             management_water = unique(management_water),
             management_fence = unique(management_fence))
 
+# let's convert the reproductive column to a binary variable with
+#   1 for reproductive and 0 otherwise
+reproduction_data <- reproduction_data %>% mutate(
+  reproductive = if_else(reproductive == "Yes", 1, 0)
+)
+
+# we want to create a new source pop variable that accounts for
+#   repeated source pop IDs among species. Ditto TFSC accession numbers
+#   and plant numbers
+reproduction_data <- reproduction_data %>% mutate(
+  source_population = species %>% paste(source_population, sep = "_"),
+  tfsc_accession_no = species %>% paste(tfsc_accession_no, sep = "_"),
+  plant_no_unique = species %>% paste(plant_no, planting_date, sep = "_")
+)
+
+# let's join the reproduction and rainfall data based on the `site` and
+#   `planting_date` columns
+reproduction_data <- reproduction_data %>% left_join(
+  rainfall_data, by = c("site", "planting_date" = "planting_date_formatted")
+)
+
+# now we can save a compiled version of the reproduction data for use in analyses
+saveRDS(reproduction_data, file = "data/compiled/reproduction-data.rds")
+
+## growth: average annual/daily growth per individual? Per observation?
+
 ## recruitment: 1 for species with natural recruits, 0 otherwise
 ##    Need to account for time-since-planting somehow
 ##    (could copy logistic regression idea for survival model)
@@ -244,6 +267,3 @@ recruitment_data <- translocation_data %>%
   summarise(date = unique(survey_date),
             initial_date = unique(planting_date),
             n_recruit = n())
-
-## in all data sets: source pop and TFSC are not identical. Both need to consider
-##   species IDs as well -- numbers are not unique among species.
