@@ -16,8 +16,43 @@ translocation_data <- translocation_data %>% map(
 )
 
 # some of health levels are incorrectly entered, let's fix them
-translocation_data <- translocation_data %>% map(recode_levels)
-translocation_data <- translocation_data %>% map(na_is_logical)
+translocation_data <- translocation_data %>% map(
+  ~ mutate(.x, 
+      Health = case_when(
+        Health == "healthy" ~ "Healthy",
+        Health == "Healthly" ~ "Healthy",
+        Health == "H" ~ "Healthy",
+        Health == "H eaten" ~ "Healthy",
+        Health == "hralthy" ~ "Healthy",
+        Health == "Health" ~ "Healthy",
+        Health == "Ununhealthy" ~ "Unhealthy",
+        Health == "unhealthy" ~ "Unhealthy",
+        Health == "poor" ~ "Unhealthy",
+        Health == "Poor" ~ "Unhealthy",
+        Health == "Dea" ~ "Dead",
+        Health == "D" ~ "Dead",
+        Health == "DEAD" ~ "Dead",
+        Health == "Yellow" ~ "NA",
+        Health == "?" ~ "NA",
+        TRUE ~ as.character(Health)
+    )
+  )
+)
+translocation_data <- translocation_data %>% map(
+  ~ mutate(.x, Health = ifelse(Health == "NA", NA, Health))
+)
+
+# repeat for reproductive column
+translocation_data <- translocation_data %>% map(
+  ~ mutate(.x, 
+      Reproductive = case_when(
+        Reproductive == "Buds" ~ "Yes",
+        Reproductive == "Noo" ~ "No",
+        Reproductive == "N" ~ "No",
+        TRUE ~ as.character(Reproductive)
+    )
+  )
+)
 
 # now we want to create new columns in our data that tell us when each plant was
 #   surveyed, and whether it was alive or dead at each observation
@@ -38,13 +73,13 @@ translocation_data <- translocation_data %>% map(
   `Plant no.` = as.character(`Plant no.`),
   plant_no = as.character(`Plant no.`),
   `KPBG no.` = as.character(`KPBG no.`),
-  kpbg_no = as.character(`KPBG no.`),    ## less important than tfsc
-  `TFSC Accession no.` = as.numeric(`TFSC Accession no.`),  ## seed collection batch
+  kpbg_no = as.character(`KPBG no.`),
+  `TFSC Accession no.` = as.numeric(`TFSC Accession no.`),
   tfsc_accession_no = as.numeric(`TFSC Accession no.`),
-  `Source Population` = as.character(`Source Population`),  ## tfsc can catch different years within source pops
+  `Source Population` = as.character(`Source Population`),
   source_population = as.character(`Source Population`),
   propagule_type = `Propagule type`,
-  replicate = Replicate,  ## should be there with treatments
+  replicate = Replicate,
   Height = as.numeric(Height),
   height = as.numeric(Height),
   `Crown 1` = as.numeric(`Crown 1`),
@@ -117,10 +152,12 @@ translocation_data <- translocation_data %>% mutate(
 # make a new data set that identifies the first "Dead" record for each individual
 #   or marks individuals alive at latest survey as "Censored"
 survival_data <- translocation_data %>% 
-  filter(!is.na(plant_no), !is.na(days), !is.na(alive)) %>%
+  filter(!is.na(plant_no), !is.na(days), !is.na(alive), planted == "planted") %>%
   group_by(species, site, plant_no, planting_date) %>%
   summarise(censored = is_censored(days = days, alive = alive),
             days = calculate_days_survived(days = days, alive = alive),
+            source_population = unique(source_population),
+            tfsc_accession_no = unique(tfsc_accession_no),
             treatment_water = unique(treatment_water),
             treatment_mulch = unique(treatment_mulch),
             treatment_planting_time = unique(treatment_planting_time),
@@ -134,6 +171,14 @@ survival_data <- translocation_data %>%
 
 # some things were never observed a second time; remove them
 survival_data <- survival_data %>% filter(days > 0)
+
+# we want to create a new source pop variable that accounts for
+#   repeated source pop IDs among species. Ditto TFSC accession numbers
+survival_data <- survival_data %>% mutate(
+  source_population = species %>% paste(source_population, sep = "_"),
+  tfsc_accession_no = species %>% paste(tfsc_accession_no, sep = "_")
+)
+
 
 # we need to load the rainfall data as well
 rainfall_data <- read_csv("data/converted/rainfall-data.csv")
@@ -167,7 +212,38 @@ saveRDS(survival_data, file = "data/compiled/survival-data.rds")
 
 ## growth: average annual/daily growth per individual? Per observation?
 
-## reproductive: tidy up categories
+# make a new data set that identifies the reproductive state of each individual
+#   at each survey
+reproduction_data <- translocation_data %>% 
+  filter(!is.na(plant_no), !is.na(days), !is.na(alive), planted == "planted") %>%
+  filter(alive == 1, !is.na(reproductive)) %>%
+  group_by(species, site, plant_no, planting_date, survey_date) %>%
+  summarise(reproductive = unique(reproductive),
+            days = unique(days),
+            source_population = unique(source_population),
+            tfsc_accession_no = unique(tfsc_accession_no),
+            treatment_water = unique(treatment_water),
+            treatment_mulch = unique(treatment_mulch),
+            treatment_planting_time = unique(treatment_planting_time),
+            treatment_fence = unique(treatment_fence),
+            treatment_seedling_age = unique(treatment_seedling_age),
+            treatment_shade = unique_no_na(treatment_shade),
+            treatment_terra_cottem = unique(treatment_terra_cottem),
+            treatment_pre_planting_burn = unique(treatment_pre_planting_burn),
+            management_water = unique(management_water),
+            management_fence = unique(management_fence))
 
 ## recruitment: 1 for species with natural recruits, 0 otherwise
 ##    Need to account for time-since-planting somehow
+##    (could copy logistic regression idea for survival model)
+## Needs more thinking -- want to capture time-since-planting,
+##    but also numbers of recruits, and time of first recruitment (vs repeat obs)
+recruitment_data <- translocation_data %>% 
+  filter(planted == "natural_recruit") %>%
+  group_by(species, site, planting_date, survey_date) %>%
+  summarise(date = unique(survey_date),
+            initial_date = unique(planting_date),
+            n_recruit = n())
+
+## in all data sets: source pop and TFSC are not identical. Both need to consider
+##   species IDs as well -- numbers are not unique among species.
