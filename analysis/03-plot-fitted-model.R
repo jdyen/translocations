@@ -7,6 +7,8 @@ source("R/functions.R")
 
 # load model outputs
 
+## use calculate_survival_probability() function (in R/functions.R) to calculate
+##   species-level and/or covariate-conditioned survival curves
 
 # setup a "days" variable so we can plot survival against the number of days survived
 times <- seq(from = 0, to = 10000, length = 1000)
