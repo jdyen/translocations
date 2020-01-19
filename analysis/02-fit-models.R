@@ -44,6 +44,9 @@ survival_model <- brm(days | cens(censored) ~
                       chains = 4,
                       cores = 4)
 
+# save the fitted model
+saveRDS(survival_model, file = "outputs/models/survival_model.rds")
+
 # model of reproductive status:
 #   logistic regression with days as a predictor:
 #      asks "probability of being reproductive at time t for species s under
@@ -63,3 +66,6 @@ reproduction_model <- brm(reproductive ~
                           thin = 10,
                           chains = 4,
                           cores = 4)
+
+# save the fitted model
+saveRDS(reproduction_model, file = "outputs/models/reproduction_model.rds")
