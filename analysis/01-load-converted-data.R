@@ -200,6 +200,11 @@ rainfall_data <- rainfall_data %>% mutate(
   rainfall_deviation_mm = rainfall_deviation_year1_mm + rainfall_deviation_year2_mm
 )
 
+rainfall_data <- rainfall_data %>% mutate(
+  rainfall_deviation_std = scale_tidy(rainfall_deviation_mm),
+  rainfall_30days_prior_std = scale_tidy(rainfall_30days_prior_mm)
+)
+
 # let's join the survival and rainfall data based on the `site` and
 #   `planting_date` columns
 survival_data <- survival_data %>% left_join(
