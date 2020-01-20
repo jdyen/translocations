@@ -1,5 +1,15 @@
 # define helper functions we need for the analysis
 
+# scale function to handle case when sd(x) = 0
+scale_tidy <- function(x) {
+  if (length(unique(x)) > 1) {
+    out <- (x - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE)
+  } else {
+    out <- unique(x)
+  }
+  out
+}
+
 # how long did the individual survive?
 calculate_days_survived <- function(days, alive) {
 
@@ -46,11 +56,28 @@ unique_no_na <- function(x) {
   out
 }
 
-# calculate survival at time t from fitted values Weibull parameters
-#   (details in vignette(brmsfamilies) and at
-#   discourse.mc-stan.org/t/estimating-survival-curves-with-weibulll-model/6475/3)
-calculate_survival_probability <- function(t, mu, k) {
-  lambda <- exp(mu) / gamma(1 + 1/k) 
-  exp(-((t / lambda) ^ k))
+# calculate probability of survival to time t or older from 
+#   fitted brms survival model (simulated ages at death)
+calculate_survival_probability <- function(ages, breaks = NULL) {
+  
+  # 
+  if (is.null(breaks))
+    breaks <- seq(from = min(ages), to = max(ages), length = 100)
+  
+  # 
+  survival_categories <- hist(ages, breaks = breaks, plot = FALSE)
+  
+  # 
+  bin_width <- diff(survival_categories$breaks)
+  survival_probability <- bin_width * survival_categories$density
+  
+  #
+  probability_alive <- 1 - cumsum(survival_probability)
+  
+  # return outputs
+  list(survival_probability = survival_probability,
+       probability_alive = probability_alive,
+       breaks = breaks)
+  
 }
 
