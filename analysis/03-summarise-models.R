@@ -1,73 +1,48 @@
 # need a few R packages to get everything running
-# NEED THIS?
-library(rstan)
+library(brms)
 
 # load some helper functions
 source("R/functions.R")
 
 # load model outputs
+survival_model <- readRDS("outputs/models/survival_model.rds")
+reproduction_model <- readRDS("outputs/models/reproduction_model.rds")
 
-## use calculate_survival_probability() function (in R/functions.R) to calculate
-##   species-level and/or covariate-conditioned survival curves
+# some posterior predictive checks
+#    Interpreted qualitatively: do the replicated values match the observations?
+pp_check(survival_model, type = "dens_overlay", nsamples = 20)
+pp_check(survival_model, type = "error_hist", group = "species")
+pp_check(reproduction_model, type = "bars", nsamples = 20)
+pp_check(reproduction_model, type = "bars_grouped", group = "species")
 
-# setup a "days" variable so we can plot survival against the number of days survived
-times <- seq(from = 0, to = 10000, length = 1000)
+# get Bayesian R2 values for each model
+survival_r2 <- bayes_R2(survival_model)
+reproduction_r2 <- bayes_R2(reproduction_model)
 
-# set up a predictor matrix, in this case a design matrix with columns for spp
-#   This tells R to plot one curve for each species
-sp_set <- rbind(c(1, 0, 0, 0),
-                c(1, 1, 0, 0),
-                c(1, 0, 1, 0),
-                c(1, 0, 0, 1))
+# calculate fitted survival curves by species
+## THIS MODEL will predict days, not survival; need enough replicates to make this work
+## OR could plot differently as boxes/bars of age at death?
+survival_newdata <- survival_model$data %>%
+  as_tibble %>%
+  select(-days, -censored) %>%
+  group_by(species, source_population, site) %>%
+  summarise(rainfall_deviation_mm = mean(rainfall_deviation_mm),
+            rainfall_30days_prior_mm = mean(rainfall_30days_prior_mm),
+            management_water = table(management_water) %>% which.max %>% names,
+            management_fence = table(management_fence) %>% which.max %>% names)
 
-# draw random draws from posterior and calculate survival curves
-idx <- sample(seq_len(nrow(beta_draws)), size = 1000, replace = FALSE)
-out <- array(NA, dim = c(length(idx), length(times), nrow(sp_set)))
-for (i in seq_along(idx)) {
-  for (j in seq_len(nrow(sp_set)))
-    out[i, , j] <- surv_fn(times, alpha_draws[idx[i]], mu_draws[idx[i]], beta_draws[idx[i], ], sp_set[j, ])
-}
+survival_predictions <- posterior_predict(survival_model, newdata = survival_newdata)
+survival_probabilities <- survival_predictions %>%
+  apply(2, calculate_survival_probability)
 
-# average parameters from posterior and calculate survival curves
-alpha_mean <- quantile(alpha_draws, p = c(0.025, 0.1, 0.5, 0.9, 0.975))
-mu_mean <- quantile(mu_draws, p = c(0.025, 0.1, 0.5, 0.9, 0.975))
-beta_mean <- apply(beta_draws, 2, quantile, p = c(0.025, 0.1, 0.5, 0.9, 0.975))
-out_ave <- array(NA, dim = c(length(alpha_mean), length(times), nrow(sp_set)))
-for (i in seq_len(length(alpha_mean))) {
-  for (j in seq_len(nrow(sp_set)))
-    out_ave[i, , j] <- surv_fn(times, alpha_mean[i], mu_mean[i], beta_mean[i, ], sp_set[j, ])
-}
+## WORK ON HOW TO SHOW MULTIPLE SPECIES
+## MAYBE BY GENUS?
+col_palette <- viridis::viridis(198)
+survival_probabilities[[1]] %$% 
+  plot(probability_alive ~ breaks[-1], type = "l", lwd = 2)
+for (i in seq_along(survival_probabilities)[-1])
+  survival_probabilities[[i]] %$% lines(probability_alive ~ breaks[-1], lwd = 2, col = col_palette[i])
 
-# let's plot the average effects with their credible intervals
-col_pal <- RColorBrewer::brewer.pal(4, "Dark2")
-plot(out_ave[3, , 1] ~ times, type = "n",
-     bty = "l", xlab = "Days", ylab = "Survival probability",
-     las = 1,
-     ylim = range(c(out_ave, 0, 1)))
-for (i in seq_len(nrow(sp_set))) {
-  polygon(c(times, rev(times)), c(out_ave[1, , i], rev(out_ave[1, , i])),
-          col = scales::alpha(col_pal[i], 0.2), border = NA)
-  polygon(c(times, rev(times)), c(out_ave[2, , i], rev(out_ave[4, , i])),
-          col = scales::alpha(col_pal[i], 0.5), border = NA)
-  lines(out_ave[3, , i] ~ times, lty = 1, lwd = 2,
-        col = col_pal[i])
-}
+# bit of code to calculate parameter estimates summarised
+# survival_model %>% spread_draws(r_species[species, var]) %>% median_qi(r_species)
 
-# make plots of random samples from the posterior
-col_pal <- viridis::inferno(4)
-plot(out[3, , 1] ~ times, type = "n",
-     bty = "l", xlab = "Days", ylab = "Survival probability",
-     las = 1,
-     ylim = range(c(out, 0, 1)))
-for (i in seq_len(nrow(sp_set))) {
-  for (j in seq_len(length(idx)))
-    lines(out[j, , i] ~ times, lty = 1, lwd = 0.1, col = scales::alpha(col_pal[i], 0.3))
-}
-
-sp_labels <- c("A. cochlocarpa",
-               "B. ionthocarpa",
-               "G. calliantha",
-               "C. humile")
-legend(x = 7000, y = 1.0, legend = sp_labels,
-       lty = 1, col = col_pal,
-       bty = "n", lwd = 2)
