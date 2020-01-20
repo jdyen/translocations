@@ -1,5 +1,10 @@
 # need a few R packages to get everything running
+library(dplyr)
 library(brms)
+library(future)
+
+# set the computational future
+plan(multisession)
 
 # load the pre-compiled data sets
 survival_data <- readRDS("data/compiled/survival-data.rds")
@@ -31,18 +36,18 @@ reproduction_data <- readRDS("data/compiled/reproduction-data.rds")
 #    or to model these NA values. Imputation has issues, modelling is
 #    computationally challenging.
 survival_model <- brm(days | cens(censored) ~ 
-                        (rainfall_deviation_mm +
-                           rainfall_30days_prior_mm +
+                        (rainfall_deviation_std +
+                           rainfall_30days_prior_std +
                            management_water +
                            management_fence | species) +
                         (1 | source_population) +
                         (1 | site),
                       data = survival_data,
                       family = weibull,
-                      iter = 20000,
-                      thin = 10,
+                      iter = 10000,
+                      thin = 5,
                       chains = 4,
-                      cores = 4)
+                      future = TRUE)
 
 # save the fitted model
 saveRDS(survival_model, file = "outputs/models/survival_model.rds")
@@ -53,8 +58,8 @@ saveRDS(survival_model, file = "outputs/models/survival_model.rds")
 #            management/treatment y?"
 reproduction_model <- brm(reproductive ~ 
                             days +
-                            (rainfall_deviation_mm +
-                               rainfall_30days_prior_mm +
+                            (rainfall_deviation_std +
+                               rainfall_30days_prior_std +
                                management_water +
                                management_fence | species) +
                             (1 | source_population) +
@@ -62,10 +67,10 @@ reproduction_model <- brm(reproductive ~
                             (1 | plant_no),
                           data = reproduction_data,
                           family = bernoulli,
-                          iter = 20000,
-                          thin = 10,
+                          iter = 10000,
+                          thin = 5,
                           chains = 4,
-                          cores = 4)
+                          future = TRUE)
 
 # save the fitted model
 saveRDS(reproduction_model, file = "outputs/models/reproduction_model.rds")
