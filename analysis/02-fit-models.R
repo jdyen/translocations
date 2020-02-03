@@ -1,10 +1,10 @@
 # need a few R packages to get everything running
 library(dplyr)
 library(brms)
-library(future)
 
-# set the computational future
-plan(multisession)
+# set the computational future (and save existing future)
+old_future <- future::plan()
+future::plan(multisession)
 
 # load the pre-compiled data sets
 survival_data <- readRDS("data/compiled/survival-data.rds")
@@ -74,3 +74,7 @@ reproduction_model <- brm(reproductive ~
 
 # save the fitted model
 saveRDS(reproduction_model, file = "outputs/models/reproduction_model.rds")
+
+# reset computational future
+future::plan(old_future)
+
