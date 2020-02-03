@@ -167,7 +167,8 @@ survival_data <- translocation_data %>%
             treatment_terra_cottem = unique(treatment_terra_cottem),
             treatment_pre_planting_burn = unique(treatment_pre_planting_burn),
             management_water = unique(management_water),
-            management_fence = unique(management_fence))
+            management_fence = unique(management_fence)) %>%
+  ungroup
 
 # some things were never observed a second time; remove them
 survival_data <- survival_data %>% filter(days > 0)
@@ -193,16 +194,18 @@ rainfall_data <- rainfall_data %>%
   group_by(site, planting_date_formatted) %>%
   summarise(rainfall_deviation_year1_mm = sum(monthly_deviation_from_mean_year1_mm),
             rainfall_deviation_year2_mm = sum(monthly_deviation_from_mean_year2_mm),
-            rainfall_30days_prior_mm = median(rainfall_30days_prior_mm))
+            rainfall_30days_prior_mm = median(rainfall_30days_prior_mm)) %>%
+  ungroup
 
 # add up the deviations from years 1 and 2
 rainfall_data <- rainfall_data %>% mutate(
   rainfall_deviation_mm = rainfall_deviation_year1_mm + rainfall_deviation_year2_mm
 )
 
+# scale rainfall data
 rainfall_data <- rainfall_data %>% mutate(
-  rainfall_deviation_std = scale_tidy(rainfall_deviation_mm),
-  rainfall_30days_prior_std = scale_tidy(rainfall_30days_prior_mm)
+  rainfall_deviation_std = scale(rainfall_deviation_mm),
+  rainfall_30days_prior_std = scale(rainfall_30days_prior_mm)
 )
 
 # let's join the survival and rainfall data based on the `site` and
@@ -233,7 +236,8 @@ reproduction_data <- translocation_data %>%
             treatment_terra_cottem = unique(treatment_terra_cottem),
             treatment_pre_planting_burn = unique(treatment_pre_planting_burn),
             management_water = unique(management_water),
-            management_fence = unique(management_fence))
+            management_fence = unique(management_fence)) %>%
+  ungroup
 
 # let's convert the reproductive column to a binary variable with
 #   1 for reproductive and 0 otherwise
@@ -271,4 +275,5 @@ recruitment_data <- translocation_data %>%
   group_by(species, site, planting_date, survey_date) %>%
   summarise(date = unique(survey_date),
             initial_date = unique(planting_date),
-            n_recruit = n())
+            n_recruit = n()) %>%
+  ungroup
