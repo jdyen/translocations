@@ -311,6 +311,7 @@ saveRDS(reproduction_data, file = "data/compiled/reproduction-data.rds")
 growth_data <- translocation_data %>%
   filter(!is.na(plant_no), !is.na(days), !is.na(alive), planted == "planted") %>%
   filter(alive == 1, !is.na(mean_crown)) %>%
+  filter(mean_crown > 0) %>%
   group_by(species, site, plant_no, planting_date, survey_date) %>%
   summarise(mean_crown = mean(mean_crown),
             days = unique(days),
