@@ -4,21 +4,12 @@ library(brms)
 
 # set the computational future (and save existing future)
 old_future <- future::plan()
-future::plan(multisession)
+future::plan(future::multisession)
 
 # load the pre-compiled data sets
 survival_data <- readRDS("data/compiled/survival-data.rds")
 reproduction_data <- readRDS("data/compiled/reproduction-data.rds")
-
-# open queries:
-#  - should we add response to fire (e.g. serotiny) as a predictor in
-#      analyses? Particularly relevant to reproduction and natural recruitment.
-#  - how much interest do we have in treatments? Many NA values in these 
-#      columns (85-100% of values are NA)
-#  - how much interest do we have in TFSC, or even source population, from
-#      an ecological perspective. Are these nuisance variables or are there
-#      genuine questions here? Missing TFSC for 39% of observations, missing
-#      source population for 11%. We have KPBG number for most (98%).
+growth_data <- readRDS("data/compiled/growth-data.rds")
 
 # we can use the brms package to fit a survival model assuming time-to-death follows
 #    a Weibull distribution.
@@ -38,6 +29,7 @@ reproduction_data <- readRDS("data/compiled/reproduction-data.rds")
 survival_model <- brm(days | cens(censored) ~ 
                         (rainfall_deviation_std +
                            rainfall_30days_prior_std +
+                           propagule_type +
                            management_water +
                            management_fence | species) +
                         (1 | source_population) +
@@ -60,6 +52,7 @@ reproduction_model <- brm(reproductive ~
                             days +
                             (rainfall_deviation_std +
                                rainfall_30days_prior_std +
+                               propagule_type +
                                management_water +
                                management_fence | species) +
                             (1 | source_population) +
@@ -74,6 +67,30 @@ reproduction_model <- brm(reproductive ~
 
 # save the fitted model
 saveRDS(reproduction_model, file = "outputs/models/reproduction_model.rds")
+
+# model of individual growth:
+#   log-linear regression with days as a predictor:
+#      asks "how big is an individual of species s at time t under
+#            management/treatment y?"
+growth_model <- brm(mean_crown ~ 
+                      days +
+                      (rainfall_deviation_std +
+                         rainfall_30days_prior_std +
+                         propagule_type +
+                         management_water +
+                         management_fence | species) +
+                      (1 | source_population) +
+                      (1 | site) +
+                      (1 | plant_no),
+                    data = growth_data,
+                    family = lognormal,
+                    iter = 10000,
+                    thin = 5,
+                    chains = 4,
+                    future = TRUE)
+
+# save the fitted model
+saveRDS(growth_model, file = "outputs/models/growth_model.rds")
 
 # reset computational future
 future::plan(old_future)
