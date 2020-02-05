@@ -3,6 +3,7 @@
 # load some packages
 library(tidyverse)
 library(lubridate)
+library(ggplot2)
 
 # load helper functions
 source("R/functions.R")
@@ -149,6 +150,24 @@ translocation_data <- translocation_data %>% mutate(
   planted = if_else(is.na(planted), "natural_recruit", planted)
 )
 
+# pull out some summary stats from the full translocation data set
+treatment_data <- translocation_data %>%
+  group_by(species) %>%
+  summarise(n_water = sum(!is.na(treatment_water)),
+            n_mulch = sum(!is.na(treatment_mulch)),
+            n_planting_time = sum(!is.na(treatment_planting_time)),
+            n_fence = sum(!is.na(treatment_fence)),
+            n_seedling_age = sum(!is.na(treatment_seedling_age)),
+            n_shade = sum(!is.na(treatment_shade)),
+            n_terra_cottem = sum(!is.na(treatment_terra_cottem)),
+            n_pre_planting_burn = sum(!is.na(treatment_pre_planting_burn)),
+            n_management_water = sum(!is.na(management_water)),
+            n_management_fence = sum(!is.na(management_fence)),
+            n_propagule_type = sum(!is.na(propagule_type)))
+
+# save this to a file for review
+treatment_data %>% write_csv(path = "data/compiled/treatment-list.csv")
+
 # make a new data set that identifies the first "Dead" record for each individual
 #   or marks individuals alive at latest survey as "Censored"
 survival_data <- translocation_data %>% 
@@ -264,12 +283,58 @@ reproduction_data <- reproduction_data %>% left_join(
 saveRDS(reproduction_data, file = "data/compiled/reproduction-data.rds")
 
 ## growth: average annual/daily growth per individual? Per observation?
+## main points:
+##   - individual growth at age (need to incorporate age)
+##   - conditional on survival (do we need to mark deaths?)
+growth_data <- translocation_data %>%
+  filter(!is.na(plant_no), !is.na(days), !is.na(alive), planted == "planted") %>%
+  filter(alive == 1, !is.na(mean_crown)) %>%
+  group_by(species, site, plant_no, planting_date, survey_date) %>%
+  summarise(mean_crown = mean(mean_crown),
+            days = unique(days),
+            source_population = unique(source_population),
+            tfsc_accession_no = unique(tfsc_accession_no),
+            treatment_water = unique(treatment_water),
+            treatment_mulch = unique(treatment_mulch),
+            treatment_planting_time = unique(treatment_planting_time),
+            treatment_fence = unique(treatment_fence),
+            treatment_seedling_age = unique(treatment_seedling_age),
+            treatment_shade = unique_no_na(treatment_shade),
+            treatment_terra_cottem = unique(treatment_terra_cottem),
+            treatment_pre_planting_burn = unique(treatment_pre_planting_burn),
+            management_water = unique(management_water),
+            management_fence = unique(management_fence)) %>%
+  ungroup
+
+# let's join the reproduction and rainfall data based on the `site` and
+#   `planting_date` columns
+growth_data <- growth_data %>% left_join(
+  rainfall_data, by = c("site", "planting_date" = "planting_date_formatted")
+)
+
+# make a quick plot of the growth data to check outliers
+growth_plot <- ggplot(data = growth_data, aes(days, mean_crown)) +
+  geom_point(color = "steelblue") +
+  labs(x = "Days since planting", y = "Mean crown") +
+  facet_wrap( ~ species, scales = "free") +
+  theme(
+    strip.text.x = element_text(margin = margin(2, 0, 2, 0),
+                                size = 8)
+  )
+pdf(file = "outputs/figs/growth-variation.pdf",
+    width = 14, height = 10)
+growth_plot
+dev.off()
+
+# now we can save a compiled version of the reproduction data for use in analyses
+saveRDS(growth_data, file = "data/compiled/growth-data.rds")
 
 ## recruitment: 1 for species with natural recruits, 0 otherwise
 ##    Need to account for time-since-planting somehow
 ##    (could copy logistic regression idea for survival model)
 ## Needs more thinking -- want to capture time-since-planting,
 ##    but also numbers of recruits, and time of first recruitment (vs repeat obs)
+##   Some of these are counted multiple times -- once for each survey
 recruitment_data <- translocation_data %>% 
   filter(planted == "natural_recruit") %>%
   group_by(species, site, planting_date, survey_date) %>%
