@@ -55,6 +55,26 @@ translocation_data <- translocation_data %>% map(
   )
 )
 
+# and for propagule type
+translocation_data <- translocation_data %>% map(
+  ~ mutate(.x, 
+           `Propagule type` = case_when(
+             `Propagule type` == "Cuttings" ~ "Cutting",
+             `Propagule type` == "Seedlings" ~ "Seedling",
+             `Propagule type` == "2, 6 and 1" ~ "NA",
+             `Propagule type` == "Population 1A" ~ "NA",
+             `Propagule type` == "Population 2" ~ "NA",
+             `Propagule type` == "Population 2 and 3" ~ "NA",
+             `Propagule type` == "Population 3" ~ "NA",
+             `Propagule type` == "Population 5" ~ "NA",
+             TRUE ~ as.character(`Propagule type`)
+           )
+  )
+)
+translocation_data <- translocation_data %>% map(
+  ~ mutate(.x, `Propagule type` = ifelse(`Propagule type` == "NA", NA, `Propagule type`))
+)
+
 # now we want to create new columns in our data that tell us when each plant was
 #   surveyed, and whether it was alive or dead at each observation
 translocation_data <- translocation_data %>% map(
@@ -176,6 +196,7 @@ survival_data <- translocation_data %>%
   summarise(censored = is_censored(days = days, alive = alive),
             days = calculate_days_survived(days = days, alive = alive),
             source_population = unique(source_population),
+            propagule_type = unique(propagule_type),
             tfsc_accession_no = unique(tfsc_accession_no),
             treatment_water = unique(treatment_water),
             treatment_mulch = unique(treatment_mulch),
@@ -245,6 +266,7 @@ reproduction_data <- translocation_data %>%
   summarise(reproductive = unique(reproductive),
             days = unique(days),
             source_population = unique(source_population),
+            propagule_type = unique(propagule_type),
             tfsc_accession_no = unique(tfsc_accession_no),
             treatment_water = unique(treatment_water),
             treatment_mulch = unique(treatment_mulch),
@@ -293,6 +315,7 @@ growth_data <- translocation_data %>%
   summarise(mean_crown = mean(mean_crown),
             days = unique(days),
             source_population = unique(source_population),
+            propagule_type = unique(propagule_type),
             tfsc_accession_no = unique(tfsc_accession_no),
             treatment_water = unique(treatment_water),
             treatment_mulch = unique(treatment_mulch),
