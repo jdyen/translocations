@@ -2,6 +2,10 @@
 .Rhistory
 .RData
 .Ruserdata
-data/*
-outputs/*
 todo*
+*.pdf
+*.xls
+*.xlsx
+*.csv
+*.RDS
+.drake
