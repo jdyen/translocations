@@ -27,9 +27,17 @@ source("R/load-data.R")
 load_and_tidy_data <- drake_plan(
   
   # load the raw excel files
-  file_list = get_file_list(directory = file_in("data/raw"), ignore = "rainfall"),
-  sites = create_site_list(file_list),
-  species = create_species_list(file_list),
+  file_list = get_file_list(
+    directory = file_in("data/raw"),
+    ignore = c("rainfall", "corrected")
+  ),
+  sites = create_site_list(
+    file_list,
+    file_out("data/compiled/sites-list.csv")
+  ),
+  species = create_species_list(
+    file_list, file_out("data/compiled/species-list.csv")
+  ),
   translocation_data = load_translocation_data(
     file_list,
     file_in("data/raw/"),
@@ -42,27 +50,33 @@ load_and_tidy_data <- drake_plan(
   
   # tidy these loaded data sets
   translocation_tidy = tidy_translocation_data(translocation_data),
-
-  # and calculate some summary stats on the treatment sample sizes
-  calculate_treatment_sizes(
-    translocation_data,
+  
+  # correct known errors in the data based on a table of corrections
+  translocation_corrected = correct_errors(
+    translocation_tidy,
+    file_in("data/raw/corrected-growth-data.xlsx")
+  ),
+  
+  # calculate some summary stats on the treatment sample sizes
+  treatment_summaries = calculate_treatment_sizes(
+    translocation_corrected,
     file_out("data/compiled/treatment-list.csv")
   ),
   
   # calculate the primary response variables
   rainfall_tidy = tidy_rainfall_data(rainfall_data),
   survival = calculate_survival(
-    translocation_tidy, 
+    translocation_corrected, 
     rainfall_tidy, 
     file_out("data/compiled/survival-data.RDS")
   ),
   reproduction = calculate_reproduction(
-    translocation_tidy,
+    translocation_corrected,
     rainfall_tidy,
     file_out("data/compiled/reproduction-data.RDS")
   ),
   growth = calculate_growth(
-    translocation_tidy,
+    translocation_corrected,
     rainfall_tidy,
     file_out("data/compiled/growth-data.RDS")
   ),
@@ -71,10 +85,14 @@ load_and_tidy_data <- drake_plan(
   #)
   
   # make some summary plots to check data
-  growth_plots = plot_growth_trajectories(
+  crown_plots = plot_crown_trajectories(
     file_in("data/compiled/growth-data.RDS"),
-    file_out("outputs/figs/growth-variation.pdf")
+    file_out("outputs/figures/growth-variation-crown.pdf")
   ),
+  height_plots = plot_height_trajectories(
+    file_in("data/compiled/growth-data.RDS"),
+    file_out("outputs/figures/growth-variation-height.pdf")
+  )
   
 )
 
@@ -97,7 +115,7 @@ fit_models <- drake_plan(
   #    make sure there are overall effects in the model, not just random intercepts/coefs.
   
   # define MCMC settings
-  mcmc_settings = list(n_iter = 10000, n_thin = 5, n_chain = 4),
+  mcmc_settings = list(n_iter = 500, n_thin = 1, n_chain = 2),
     
   # fit survival model
   survival_formula = days | cens(censored) ~  propagule_type +
@@ -167,9 +185,9 @@ source("R/plotting.R")
 check_models <- drake_plan(
 
   # load the fitted models (could use RDS if this doesn't work??)
-  survival_draws <- loadd(survival_model),
-  reproduction_draws <- loadd(reproduction_model),
-  growth_draws <- loadd(growth_model),
+  survival_draws <- readd(survival_model),
+  reproduction_draws <- readd(reproduction_model),
+  growth_draws <- readd(growth_model),
   
   # run some posterior predictive checks and save outputs to files
   survival_checks = posterior_checks(
@@ -196,6 +214,5 @@ check_models <- drake_plan(
   survival_R2 = bayes_R2(survival_model),
   reproduction_R2 = bayes_R2(reproduction_model),
   growth_R2 = bayes_R2(growth_model),
-  
   
 )

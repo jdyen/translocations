@@ -8,8 +8,10 @@ get_file_list <- function(directory, ignore = NULL) {
   
   # but we don't want to load the rainfall file here, so we remove it from
   #   the list
-  if (!is.null(ignore))
-    file_path <- file_path[grep(ignore, file_path, invert = TRUE)]
+  if (!is.null(ignore)) {
+    for (i in seq_along(ignore))
+      file_path <- file_path[grep(ignore[i], file_path, invert = TRUE)]
+  }
 
   # return
   file_path
@@ -17,10 +19,10 @@ get_file_list <- function(directory, ignore = NULL) {
 }
 
 # pull the site names out of file_list
-create_site_list <- function(file_list) {
+create_site_list <- function(file_list, file) {
 
   # create a list of sites from the raw file names
-  sites_list <- sites <- file_list %>%
+  sites_list <- file_list %>%
     sapply(strsplit, split = "_") %>%
     sapply(function(x) x[2])
   sites <- sites_list %>%
@@ -28,13 +30,16 @@ create_site_list <- function(file_list) {
     sort %>%
     tibble
   
+  # save unique sites to a file for checking
+  sites %>% write_csv(file)
+  
   # return
-  sites
+  sites_list
   
 }
 
 # pull out a list of sites and species from the file names
-create_species_list <- function(file_list) {
+create_species_list <- function(file_list, file) {
 
   # create a list of species from the raw file names
   species_list <- file_list %>%
@@ -45,8 +50,11 @@ create_species_list <- function(file_list) {
     sort %>%
     tibble
   
+  # save unique species to a file for checking
+  species %>% write_csv(file)
+  
   # return outputs
-  species
+  species_list
   
 }
 
@@ -57,7 +65,7 @@ load_translocation_data <- function(file_list, directory, sites, species) {
     map(function(x) read_excel(path = x))
   
   # add in site and species IDs to the data sets
-  translocation_data <- list(translocation_data, sites_list, species_list) %>% pmap(
+  translocation_data <- list(translocation_data, sites, species) %>% pmap(
     function(x, y, z) add_column(x, site = rep(y, nrow(x)), species = rep(z, nrow(x)))
   )
   
@@ -304,6 +312,53 @@ tidy_translocation_data <- function(data) {
   
 }
 
+# correct mistakes based on a xlsx file of known errors
+correct_errors <- function(data, corrections) {
+  
+  # load in data from a separate excel sheet of corrections
+  corrections <- read_excel(corrections)
+
+  # fix up some of the formatting in the corrections file so we can match
+  #   it to the full data set
+  corrections <- corrections %>% mutate(
+    planting_date_formatted = parse_date_time(`Planting Date`, orders = c("ymd_HMS", "ymd", "dmy")),
+    date_formatted = parse_date_time(Date, orders = c("ymd_HMS", "ymd", "dmy")),
+    plant_no = as.character(`Plant no.`)
+  )
+  
+  # join up the corrections to the full data set
+  data_corrected <- corrections %>%
+    select(Species, plant_no, planting_date_formatted, date_formatted,
+           Height, `Crown 1`, `Crown 2`, `Mean Crown`) %>% 
+    right_join(data, by = c("Species" = "species",
+                            "plant_no" = "plant_no",
+                            "planting_date_formatted" = "planting_date",
+                            "date_formatted" = "survey_date"))
+
+  # replace corrected values as needed  
+  data_corrected <- data_corrected %>%
+    mutate(
+      height = ifelse(is.na(Height), height, Height),
+      crown_one = ifelse(is.na(`Crown 1`), crown_one, `Crown 1`),
+      crown_two = ifelse(is.na(`Crown 2`), crown_two, `Crown 2`),
+      mean_crown = ifelse(is.na(`Mean Crown`), mean_crown, `Mean Crown`)
+    )
+  
+  # remove excess columns
+  data_corrected <- data_corrected %>%
+    select(-Height, -`Crown 1`, -`Crown 2`, -`Mean Crown`)
+  
+  # and rename the replaced columns
+  data_corrected <- data_corrected %>%
+    rename(species = Species,
+           planting_date = planting_date_formatted,
+           survey_date = date_formatted)
+  
+  # return
+  data_corrected
+  
+}
+
 # pull out some summary stats from the full translocation data set
 calculate_treatment_sizes <- function(data, file) {
   
@@ -452,7 +507,7 @@ calculate_reproduction <- function(data, rainfall, file) {
   # let's join the reproduction and rainfall data based on the `site` and
   #   `planting_date` columns
   reproduction_data <- reproduction_data %>% left_join(
-    rainfall_data, by = c("site", "planting_date" = "planting_date_formatted")
+    rainfall, by = c("site", "planting_date" = "planting_date_formatted")
   )
   
   # now we can save a compiled version of the reproduction data for use in analyses
@@ -466,13 +521,24 @@ calculate_reproduction <- function(data, rainfall, file) {
 ##   - conditional on survival (do we need to mark deaths?)
 calculate_growth <- function(data, rainfall, file) {
   
-  # filter to valid observations and calculate size-at-age
+  # filter to valid observations
   growth_data <- data %>%
-    filter(!is.na(plant_no), !is.na(days), !is.na(alive), planted == "planted") %>%
-    filter(alive == 1, !is.na(mean_crown)) %>%
+    filter(!is.na(plant_no), !is.na(days), !is.na(alive), planted == "planted")
+  
+  # there are a few species with only one crown measurement,
+  #   fill the mean measurements with the single value where relevant
+  growth_data <- growth_data %>% mutate(
+    mean_crown = ifelse(is.na(mean_crown), crown_one, mean_crown),
+    mean_crown = ifelse(is.na(mean_crown), crown_two, mean_crown)
+  )
+  
+  # filter a second time and calculate size-at-age
+  growth_data <- growth_data %>%
+    filter(alive == 1, !is.na(mean_crown), !is.na(height)) %>%
     filter(mean_crown > 0) %>%
     group_by(species, site, plant_no, planting_date, survey_date) %>%
     summarise(mean_crown = mean(mean_crown),
+              height = mean(height),
               days = unique(days),
               source_population = unique(source_population),
               propagule_type = unique(propagule_type),
@@ -501,13 +567,16 @@ calculate_growth <- function(data, rainfall, file) {
 }
 
 # make a quick plot of the growth data to check outliers
-plot_growth_trajectories <- function(path, file) {
+plot_crown_trajectories <- function(path, file) {
+  
+  on.exit(dev.off())
+  pdf(file = file, width = 14, height = 10)
   
   # load growth data
   growth_data <- readRDS(path)
   
   # create plot of growth trajectories
-  growth_plot <- ggplot(data = growth_data, aes(days, mean_crown)) +
+  crown_plot <- ggplot(data = growth_data, aes(days, mean_crown)) +
     geom_point(color = "steelblue") +
     labs(x = "Days since planting", y = "Mean crown") +
     facet_wrap( ~ species, scales = "free") +
@@ -517,10 +586,32 @@ plot_growth_trajectories <- function(path, file) {
     )
   
   # plot to file
+  print(crown_plot)
+
+}
+
+# make a quick plot of the growth data to check outliers
+plot_height_trajectories <- function(path, file) {
+
+  on.exit(dev.off())
   pdf(file = file, width = 14, height = 10)
-  growth_plot
-  dev.off()
   
+  # load growth data
+  growth_data <- readRDS(path)
+  
+  # create plot of growth trajectories
+  height_plot <- ggplot(data = growth_data, aes(days, height)) +
+    geom_point(color = "steelblue") +
+    labs(x = "Days since planting", y = "Height") +
+    facet_wrap( ~ species, scales = "free") +
+    theme(
+      strip.text.x = element_text(margin = margin(2, 0, 2, 0),
+                                  size = 8)
+    )
+  
+  # plot to file
+  print(height_plot)
+
 }
 
 ## recruitment: 1 for species with natural recruits, 0 otherwise
