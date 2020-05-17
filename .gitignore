@@ -2,6 +2,7 @@
 .Rhistory
 .RData
 .Ruserdata
+Sandbox*
 todo*
 *.pdf
 *.xls
@@ -9,3 +10,5 @@ todo*
 *.csv
 *.RDS
 .drake
+.DS_Store
+*.zip
