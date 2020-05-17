@@ -2,11 +2,10 @@
 # package to cache intermediate objects and save some runtime
 
 # set a seed to keep the MCMC sampler reproducible
-set.seed(2020-02-07)
+set.seed(2020-04-28)
 
 # packages used for workflow management
 library(drake)
-library(future)
 
 # to load and prepare data objects
 library(tidyverse)
@@ -80,10 +79,7 @@ load_and_tidy_data <- drake_plan(
     rainfall_tidy,
     file_out("data/compiled/growth-data.RDS")
   ),
-  # recruitment = calculate_recruitment(
-  ## NOT YET IMPLEMENTED
-  #)
-  
+
   # make some summary plots to check data
   crown_plots = plot_crown_trajectories(
     file_in("data/compiled/growth-data.RDS"),
@@ -105,20 +101,19 @@ source("R/modelling.R")
 fit_models <- drake_plan(
   
   # load the data sets
-  survival_data = readRDS("data/compiled/survival-data.RDS"),
-  reproduction_data = readRDS("data/compiled/reproduction-data.RDS"),
-  growth_data = readRDS("data/compiled/growth-data.RDS"),
-  
-  # fit models
-  ## FOR ALL:
-  #    decide on model structure, shift some predictors to main effects,
-  #    make sure there are overall effects in the model, not just random intercepts/coefs.
-  
+  survival_data = readRDS(file_in("data/compiled/survival-data.RDS")),
+  reproduction_data = readRDS(file_in("data/compiled/reproduction-data.RDS")),
+  growth_tmp = readRDS(file_in("data/compiled/growth-data.RDS")),
+
   # define MCMC settings
-  mcmc_settings = list(n_iter = 500, n_thin = 1, n_chain = 2),
+  mcmc_settings = list(n_iter = 20000, n_thin = 10, n_chain = 4),
     
   # fit survival model
   survival_formula = days | cens(censored) ~  propagule_type +
+    rainfall_deviation_std +
+    rainfall_30days_prior_std +
+    management_water +
+    management_fence +
     (rainfall_deviation_std +
        rainfall_30days_prior_std +
        management_water +
@@ -135,6 +130,10 @@ fit_models <- drake_plan(
   reproduction_formula = reproductive ~ 
     days +
     propagule_type +
+    rainfall_deviation_std +
+    rainfall_30days_prior_std +
+    management_water +
+    management_fence +
     (rainfall_deviation_std +
        rainfall_30days_prior_std +
        management_water +
@@ -148,10 +147,14 @@ fit_models <- drake_plan(
     mcmc_settings
   ),
   
-  # fit growth model
-  growth_formula = mean_crown ~ 
+  # fit crown growth model
+  crown_growth_formula = mean_crown ~
     days +
     propagule_type +
+    rainfall_deviation_std +
+    rainfall_30days_prior_std +
+    management_water +
+    management_fence +
     (rainfall_deviation_std +
        rainfall_30days_prior_std +
        management_water +
@@ -159,24 +162,38 @@ fit_models <- drake_plan(
     (1 | source_population) +
     (1 | site) +
     (1 | plant_no),
-  growth_model = fit_growth_model(
-    growth_formula,
-    growth_data,
+  crown_growth_model = fit_growth_model(
+    crown_growth_formula,
+    growth_tmp,
     mcmc_settings
   ),
   
-  ## NOT YET IMPLEMENTED
-  # treatment_models = fit_treatment_model(
-  #   formula, treatment_water, data, mcmc_settings
-  # )
-  
+  # fit height growth model
+  height_growth_formula = height ~ 
+    days +
+    propagule_type +
+    rainfall_deviation_std +
+    rainfall_30days_prior_std +
+    management_water +
+    management_fence +
+    (rainfall_deviation_std +
+       rainfall_30days_prior_std +
+       management_water +
+       management_fence | species) +
+    (1 | source_population) +
+    (1 | site) +
+    (1 | plant_no),
+  height_growth_model = fit_growth_model(
+    height_growth_formula,
+    growth_tmp,
+    mcmc_settings
+  ),
+
 )
 
-# set the computational future (and reset future once models have run)
-old_future <- plan()
-plan(multisession)
-make(fit_models)
-plan(old_future)
+# rstan models require lock_envir = FALSE to avoid issues
+#   with drake
+make(fit_models, lock_envir = FALSE)
 
 # interrogate models -------------------------------------------------------------
 
@@ -184,10 +201,10 @@ source("R/plotting.R")
 
 check_models <- drake_plan(
 
-  # load the fitted models (could use RDS if this doesn't work??)
-  survival_draws <- readd(survival_model),
-  reproduction_draws <- readd(reproduction_model),
-  growth_draws <- readd(growth_model),
+  # load the fitted models (could use qs if this doesn't work??)
+  survival_model = readd(survival_model),
+  reproduction_model = readd(reproduction_model),
+  growth_model = readd(height_growth_model),
   
   # run some posterior predictive checks and save outputs to files
   survival_checks = posterior_checks(
@@ -203,10 +220,16 @@ check_models <- drake_plan(
     nsamples = 20,
     group = "species"
   ),
-  growth_checks = posterior_checks(
-    growth_model,
+  height_growth_checks = posterior_checks(
+    height_growth_model,
     type = c("dens_overlay", "error_hist"),
-    file = file_out("outputs/figures/growth_pp_checks.pdf"),
+    file = file_out("outputs/figures/height_growth_pp_checks.pdf"),
+    nsamples = 20
+  ),
+  crown_growth_checks = posterior_checks(
+    crown_growth_model,
+    type = c("dens_overlay", "error_hist"),
+    file = file_out("outputs/figures/crown_growth_pp_checks.pdf"),
     nsamples = 20
   ),
   
@@ -216,3 +239,12 @@ check_models <- drake_plan(
   growth_R2 = bayes_R2(growth_model),
   
 )
+
+make(check_models)
+
+# summarise models -------------------------------------------------------------
+
+# plot forest plots a la Danny & Pete et al. (by species, ordered by coefficient magnitude)
+#   Neg at bottom, pos at top, average of all species at very bottom.
+#   Can group by resprouting strategy.
+# plot survival curves by species/treatment

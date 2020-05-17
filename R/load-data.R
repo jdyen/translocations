@@ -535,7 +535,7 @@ calculate_growth <- function(data, rainfall, file) {
   # filter a second time and calculate size-at-age
   growth_data <- growth_data %>%
     filter(alive == 1, !is.na(mean_crown), !is.na(height)) %>%
-    filter(mean_crown > 0) %>%
+    filter(mean_crown > 0, height > 0) %>%
     group_by(species, site, plant_no, planting_date, survey_date) %>%
     summarise(mean_crown = mean(mean_crown),
               height = mean(height),
