@@ -1,4 +1,4 @@
-# load all raw data sets and convert to CSV or rds
+# load all raw data sets and convert to qs
 
 # load all raw data files
 get_file_list <- function(directory, ignore = NULL) {
@@ -84,12 +84,6 @@ load_rainfall_data <- function(file) {
   rainfall_data$site <- gsub("Wongan Hills NR", "Wongan", rainfall_data$site)
   rainfall_data$site <- gsub("Boundary Road", "Boundary Rd", rainfall_data$site)
   rainfall_data$site <- gsub("Mt ManyPeaks NR", "Mt Manypeaks NR", rainfall_data$site)
-  
-  # the column names of rainfall data are incorrect for monthly deviations
-  rainfall_data <- rainfall_data %>% rename(
-    monthly_deviation_from_mean_year1_mm = monthly_deviation_from_mean_year1_mm...10,
-    monthly_deviation_from_mean_year2_mm = monthly_deviation_from_mean_year1_mm...11
-  )
   
   # return
   rainfall_data
@@ -459,7 +453,7 @@ calculate_survival <- function(data, rainfall, file) {
   )
   
   # now we can save a compiled version of the survival data for use in analyses
-  saveRDS(survival_data, file = file)
+  qsave(survival_data, file = file)
   
 }
 
@@ -511,14 +505,13 @@ calculate_reproduction <- function(data, rainfall, file) {
   )
   
   # now we can save a compiled version of the reproduction data for use in analyses
-  saveRDS(reproduction_data, file = file)
+  qsave(reproduction_data, file = file)
   
 }
 
-## growth: average annual/daily growth per individual? Per observation?
-## main points:
-##   - individual growth at age (need to incorporate age)
-##   - conditional on survival (do we need to mark deaths?)
+# growth: average annual/daily growth per individual? Per observation?
+#   - individual growth at age (need to incorporate age)
+#   - conditional on survival (do we need to mark deaths?)
 calculate_growth <- function(data, rainfall, file) {
   
   # filter to valid observations
@@ -562,7 +555,7 @@ calculate_growth <- function(data, rainfall, file) {
   )
   
   # now we can save a compiled version of the reproduction data for use in analyses
-  saveRDS(growth_data, file = file)
+  qsave(growth_data, file = file)
   
 }
 
@@ -573,7 +566,7 @@ plot_crown_trajectories <- function(path, file) {
   pdf(file = file, width = 14, height = 10)
   
   # load growth data
-  growth_data <- readRDS(path)
+  growth_data <- qread(path)
   
   # create plot of growth trajectories
   crown_plot <- ggplot(data = growth_data, aes(days, mean_crown)) +
@@ -597,7 +590,7 @@ plot_height_trajectories <- function(path, file) {
   pdf(file = file, width = 14, height = 10)
   
   # load growth data
-  growth_data <- readRDS(path)
+  growth_data <- qread(path)
   
   # create plot of growth trajectories
   height_plot <- ggplot(data = growth_data, aes(days, height)) +
@@ -638,6 +631,6 @@ calculate_recruitment <- function(data, rainfall, file) {
   )
   
   # now we can save a compiled version of the reproduction data for use in analyses
-  saveRDS(recruitment_data, file = file)
+  qsave(recruitment_data, file = file)
   
 }

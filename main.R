@@ -8,6 +8,7 @@ set.seed(2020-04-28)
 library(drake)
 
 # to load and prepare data objects
+library(qs)
 library(tidyverse)
 library(readxl)
 library(lubridate)
@@ -18,6 +19,7 @@ library(brms)
 
 # to interrogate model outputs
 library(magrittr)
+library(tidybayes)
 
 # load the data ----------------------------------------------------------------
 
@@ -51,10 +53,27 @@ load_and_tidy_data <- drake_plan(
   translocation_tidy = tidy_translocation_data(translocation_data),
   
   # correct known errors in the data based on a table of corrections
-  translocation_corrected = correct_errors(
+  translocation_no_errors = correct_errors(
     translocation_tidy,
     file_in("data/raw/corrected-growth-data.xlsx")
   ),
+  
+  # combine management and treatment water into a single variable
+  translocation_corrected = translocation_no_errors %>%
+    mutate(
+      management_water = ifelse(is.na(management_water), "No", management_water),
+      treatment_water = ifelse(is.na(treatment_water), "Control", treatment_water),
+      management_water = ifelse(
+        management_water == "Yes" | treatment_water == "Water",
+        "Yes", 
+        "No"),
+      management_fence = ifelse(is.na(management_fence), "No", management_fence),
+      treatment_fence = ifelse(is.na(treatment_fence), "Unfenced", treatment_fence),
+      management_fence = ifelse(
+        management_fence == "Yes" | treatment_fence == "Fenced",
+        "Yes", 
+        "No")
+    ),
   
   # calculate some summary stats on the treatment sample sizes
   treatment_summaries = calculate_treatment_sizes(
@@ -67,26 +86,26 @@ load_and_tidy_data <- drake_plan(
   survival = calculate_survival(
     translocation_corrected, 
     rainfall_tidy, 
-    file_out("data/compiled/survival-data.RDS")
+    file_out("data/compiled/survival-data.qs")
   ),
   reproduction = calculate_reproduction(
     translocation_corrected,
     rainfall_tidy,
-    file_out("data/compiled/reproduction-data.RDS")
+    file_out("data/compiled/reproduction-data.qs")
   ),
   growth = calculate_growth(
     translocation_corrected,
     rainfall_tidy,
-    file_out("data/compiled/growth-data.RDS")
+    file_out("data/compiled/growth-data.qs")
   ),
 
   # make some summary plots to check data
   crown_plots = plot_crown_trajectories(
-    file_in("data/compiled/growth-data.RDS"),
+    file_in("data/compiled/growth-data.qs"),
     file_out("outputs/figures/growth-variation-crown.pdf")
   ),
   height_plots = plot_height_trajectories(
-    file_in("data/compiled/growth-data.RDS"),
+    file_in("data/compiled/growth-data.qs"),
     file_out("outputs/figures/growth-variation-height.pdf")
   )
   
@@ -101,9 +120,9 @@ source("R/modelling.R")
 fit_models <- drake_plan(
   
   # load the data sets
-  survival_data = readRDS(file_in("data/compiled/survival-data.RDS")),
-  reproduction_data = readRDS(file_in("data/compiled/reproduction-data.RDS")),
-  growth_tmp = readRDS(file_in("data/compiled/growth-data.RDS")),
+  survival_data = qread(file_in("data/compiled/survival-data.qs")),
+  reproduction_data = qread(file_in("data/compiled/reproduction-data.qs")),
+  growth_tmp = qread(file_in("data/compiled/growth-data.qs")),
 
   # define MCMC settings
   mcmc_settings = list(n_iter = 20000, n_thin = 10, n_chain = 4),
@@ -188,63 +207,91 @@ fit_models <- drake_plan(
     growth_tmp,
     mcmc_settings
   ),
-
+  
+  # save fitted models (not really necessary with drake::readd)
+  qsave(survival_model, file = file_out("outputs/models/survival-model.qs")),
+  qsave(reproduction_model, file = file_out("outputs/models/reproduction-model.qs")),
+  qsave(height_growth_model, file = file_out("outputs/models/height-growth-model.qs")),
+  qsave(crown_growth_model, file = file_out("outputs/models/crown-growth-model.qs")),
+  
 )
 
 # rstan models require lock_envir = FALSE to avoid issues
 #   with drake
 make(fit_models, lock_envir = FALSE)
 
-# interrogate models -------------------------------------------------------------
+# interrogate and plot models -------------------------------------------------------------
 
 source("R/plotting.R")
 
-check_models <- drake_plan(
+plot_models <- drake_plan(
 
-  # load the fitted models (could use qs if this doesn't work??)
+  # load the fitted models
   survival_model = readd(survival_model),
   reproduction_model = readd(reproduction_model),
-  growth_model = readd(height_growth_model),
+  height_growth_model = readd(height_growth_model),
+  crown_growth_model = readd(crown_growth_model),
   
   # run some posterior predictive checks and save outputs to files
   survival_checks = posterior_checks(
     survival_model,
     type = c("dens_overlay", "error_hist"),
-    file = file_out("outputs/figures/survival_pp_checks.pdf"),
+    file = c(file_out("outputs/figures/survival_pp_checks_dens.jpg"),
+             file_out("outputs/figures/survival_pp_checks_hist.jpg")),
     nsamples = 20
   ),
   reproduction_checks = posterior_checks(
     reproduction_model,
     type = c("bars", "bars_grouped"),
-    file = file_out("outputs/figures/reproduction_pp_checks.pdf"),
+    file = c(file_out("outputs/figures/reproduction_pp_checks_bars.jpg"),
+             file_out("outputs/figures/reproduction_pp_checks_bars_grouped.jpg")),
     nsamples = 20,
     group = "species"
   ),
   height_growth_checks = posterior_checks(
     height_growth_model,
     type = c("dens_overlay", "error_hist"),
-    file = file_out("outputs/figures/height_growth_pp_checks.pdf"),
+    file = c(file_out("outputs/figures/height_growth_pp_checks_dens.jpg"),
+             file_out("outputs/figures/height_growth_pp_checks_hist.jpg")),
     nsamples = 20
   ),
   crown_growth_checks = posterior_checks(
     crown_growth_model,
     type = c("dens_overlay", "error_hist"),
-    file = file_out("outputs/figures/crown_growth_pp_checks.pdf"),
+    file = c(file_out("outputs/figures/crown_growth_pp_checks_dens.jpg"),
+             file_out("outputs/figures/crown_growth_pp_checks_hist.jpg")),
     nsamples = 20
   ),
   
   # calculate model r2 values
   survival_R2 = bayes_R2(survival_model),
   reproduction_R2 = bayes_R2(reproduction_model),
-  growth_R2 = bayes_R2(growth_model),
+  height_growth_R2 = bayes_R2(height_growth_model),
+  crown_growth_R2 = bayes_R2(crown_growth_model),
+  
+  # plot effects of variables
+  var_list = c("Intercept",
+               "rainfall_deviation_std",
+               "rainfall_30days_prior_std",
+               "management_waterYes",
+               "management_fenceYes"),
+  surv_files = sapply(paste0("outputs/figures/survival-", var_list, ".jpg"),
+                      file_out),
+  reprod_files = sapply(paste0("outputs/figures/reproduction-", var_list, ".jpg"),
+                        file_out),
+  hgrow_files = sapply(paste0("outputs/figures/height-growth-", var_list, ".jpg"),
+                       file_out),
+  cgrow_files = sapply(paste0("outputs/figures/crown-growth-", var_list, ".jpg"),
+                       file_out),
+  surv_coef_plots = plot_model(survival_model, var_list, surv_files, order = TRUE, xlog = FALSE),
+  reprod_coef_plots = plot_model(reproduction_model, var_list, reprod_files, order = TRUE, xlog = TRUE),
+  hgrow_coef_plots = plot_model(height_growth_model, var_list, hgrow_files, order = TRUE, xlog = TRUE),
+  cgrow_coef_plots = plot_model(crown_growth_model, var_list, cgrow_files, order = TRUE, xlog = TRUE),
+  
+  # plot survival curves
+  survival_curve_plots = plot_survival_treatments(survival_model,
+                                                  filepath = "outputs/figures/survival-treatment"),
   
 )
 
-make(check_models)
-
-# summarise models -------------------------------------------------------------
-
-# plot forest plots a la Danny & Pete et al. (by species, ordered by coefficient magnitude)
-#   Neg at bottom, pos at top, average of all species at very bottom.
-#   Can group by resprouting strategy.
-# plot survival curves by species/treatment
+make(plot_models)
