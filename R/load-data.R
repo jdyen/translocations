@@ -90,7 +90,19 @@ load_rainfall_data <- function(file) {
   
 }
 
-# read in all converted files and tidy them up
+# read in the additional rainfall data
+load_new_rainfall_data <- function(file) {
+  
+  rainfall_data <- read_excel(file)
+  
+  rainfall_data <- rainfall_data %>% mutate(
+    planting_date = parse_date_time(planting_date, orders = c("dmy"))
+  )
+  
+  # return
+  rainfall_data
+  
+}
 
 # how long did the individual survive?
 calculate_days_survived <- function(days, alive) {

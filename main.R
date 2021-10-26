@@ -45,9 +45,13 @@ load_and_tidy_data <- drake_plan(
     sites,
     species
   ),
-  rainfall_data = load_rainfall_data(
+  old_rainfall_data = load_rainfall_data(
     file_in("data/raw/Translocation site longterm rainfall data.xlsx")
   ),
+  new_rainfall_data = load_rainfall_data(
+    file_in("data/raw/Translocation site longterm rainfall data_2 missing datasets.xlsx")
+  ),
+  rainfall_data = bind_rows(old_rainfall_data, new_rainfall_data),
   
   # tidy these loaded data sets
   translocation_tidy = tidy_translocation_data(translocation_data),
@@ -263,7 +267,7 @@ plot_models <- drake_plan(
     nsamples = 20
   ),
   
-  # calculate model r2 values
+  # calculate model r2 valuesf
   survival_R2 = bayes_R2(survival_model),
   reproduction_R2 = bayes_R2(reproduction_model),
   height_growth_R2 = bayes_R2(height_growth_model),

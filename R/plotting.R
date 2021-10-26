@@ -153,11 +153,11 @@ plot_survival_treatments <- function(model, filepath) {
   
   # create a file to plot to
   jpeg(file = paste0(filepath, "-watering.jpg"),
-       height = 5500, width = 4000, units = "px",
+       height = 6000, width = 4000, units = "px",
        res = 300, pointsize = 10)
   
   # reset plot parameters, saving old pars
-  par(mfrow = c(8, 6))
+  par(mfrow = c(10, 5))
   
   # plot all species
   for (i in seq_along(sp_list)) {
@@ -172,11 +172,11 @@ plot_survival_treatments <- function(model, filepath) {
   
   # repeating for fencing
   jpeg(file = paste0(filepath, "-fencing.jpg"),
-       height = 5500, width = 4000, units = "px",
+       height = 6000, width = 4000, units = "px",
        res = 300, pointsize = 10)
   
   # reset plot parameters, saving old pars
-  par(mfrow = c(8, 6))
+  par(mfrow = c(10, 5))
   
   # plot all species
   for (i in seq_along(sp_list)) {
@@ -336,7 +336,7 @@ plot_coefficients <- function(midpoint,
   
   # and a mean line
   if (!is.null(mean_line))
-    lines(c(mean_line, mean_line), c(0, nvar + 1), lty = 1, lwd = 2)
+    lines(c(mean_line, mean_line), c(0, nvar + 1), lty = 2, lwd = 2, col = "gray50")
   
   # and some axes  
   axis(1)

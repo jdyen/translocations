@@ -11,4 +11,6 @@ todo*
 *.RDS
 .drake
 .DS_Store
-*.zip
+$.zip
+data/*
+outputs/*
