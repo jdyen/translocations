@@ -560,6 +560,11 @@ calculate_growth <- function(data, rainfall, file) {
               management_fence = unique(management_fence)) %>%
     ungroup
   
+  # some source populations are NA, replace with species name if so
+  growth_data <- growth_data %>% mutate(
+    source_population = ifelse(is.na(source_population), species, source_population)
+  )
+  
   # let's join the reproduction and rainfall data based on the `site` and
   #   `planting_date` columns
   growth_data <- growth_data %>% left_join(
