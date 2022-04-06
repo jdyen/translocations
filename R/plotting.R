@@ -5,7 +5,7 @@
 posterior_checks <- function(model, type, file, ...) {
 
   for (i in seq_along(type)) {
-    jpeg(file = file[i], res = 300, height = 4000, width = 4000, pointsize = 4)
+    png(file = file[i], res = 300, height = 16, width = 16, units = "in", pointsize = 12)
     print(pp_check(model, type = type[i], ...))
     dev.off()
   }
@@ -152,7 +152,7 @@ plot_survival_treatments <- function(model, filepath) {
   sp_list <- unique(model$data$species)
   
   # create a file to plot to
-  jpeg(file = paste0(filepath, "-watering.jpg"),
+  png(file = paste0(filepath, "-watering.png"),
        height = 6000, width = 4000, units = "px",
        res = 300, pointsize = 10)
   
@@ -171,7 +171,7 @@ plot_survival_treatments <- function(model, filepath) {
   dev.off()
   
   # repeating for fencing
-  jpeg(file = paste0(filepath, "-fencing.jpg"),
+  png(file = paste0(filepath, "-fencing.png"),
        height = 6000, width = 4000, units = "px",
        res = 300, pointsize = 10)
   
@@ -226,16 +226,36 @@ extract_coefficients <- function(model, variable, .width = c(0.8, 0.95)) {
 }
 
 # plot coefficients from a fitted brms model
-plot_model <- function(model, var_list, file_list, order = FALSE, xlog = FALSE) {
+plot_model <- function(
+  model,
+  var_list,
+  file_list,
+  rainfall_zone = NULL, 
+  order = FALSE, 
+  xlog = FALSE,
+  group = FALSE
+) {
+  
+  # set up plot if all are grouped
+  if (group) {
+    png(file = gsub("Intercept", "effects", file_list[1]), width = 12, height = 2.25 * 6, units = "in", pointsize = 16, res = 300)
+    layout(rbind(matrix(1:4, nrow = 2, byrow = TRUE), rep(5, 2)), heights = c(1, 1, 0.15))
+    var_list <- var_list[-1]
+  }
   
   # loop through each variable of interest and create a forest plot of coefficients
   for (i in seq_along(var_list)) {
     
     # open a plotting device
-    jpeg(file = file_list[i], width = 1600, height = 1600, pointsize = 8, res = 300)
+    if (!group)
+      png(file = file_list[i], width = 6, height = 6, units = "in", pointsize = 8, res = 300)
     
     # get coefficients
     vals <- extract_coefficients(model, var_list[i])
+    
+    # grab relevant rainfall zones if provided
+    if (!is.null(rainfall_zone))
+      rainfall_sub <- rainfall_zone$zone[match(vals$species, rainfall_zone$species)]
     
     # get the species and variable names correct
     var_name <- format_name(var_list[i])
@@ -244,39 +264,72 @@ plot_model <- function(model, var_list, file_list, order = FALSE, xlog = FALSE) 
     
     # do we want to exponentiate the x-axis? (yes if intercepts in some models)
     log_x <- FALSE
-    if (i == 1 & xlog)
+    if (i == 1 & xlog & !group)
       log_x <- TRUE
     
     # calculate mean line (i.e. shared mean for all species)
     mean_line <- fixef(model)[var_list[i], "Estimate"]
     
     # plot it
-    plot_coefficients(vals$coef, vals$coef.lower_0.8, vals$coef.upper_0.8, vals$coef.lower_0.95, vals$coef.upper_0.95,
-                      labels = sp_names, main = var_name, order = order, xlog = log_x, mean_line = mean_line)
+    plot_coefficients(
+      vals$coef,
+      vals$coef.lower_0.8, vals$coef.upper_0.8, 
+      vals$coef.lower_0.95, vals$coef.upper_0.95,
+      rainfall_zone = rainfall_sub,
+      labels = sp_names, 
+      main = var_name, 
+      order = order, 
+      xlog = log_x,
+      mean_line = mean_line,
+      group = group
+    )
     
     # close the plotting device
+    if (!group)
+      dev.off()
+
+  }
+
+  if (group) {
+    par(mar = rep(0, 4))
+    plot(c(0, 1) ~ c(0, 1), bty = "n", xaxt = "n", yaxt = "n", xlab = "", ylab = "", type = "n")
+    col_pal <- RColorBrewer::brewer.pal(nlevels(rainfall_sub), name = "Set2")
+    legend(x = "center", legend = unique(rainfall_sub), fill = col_pal, horiz = TRUE, cex = 1.5)
     dev.off()
-    
   }
   
 }
 
 # internal function used in plot_model
-plot_coefficients <- function(midpoint,
-                              narrow_lower,
-                              narrow_upper,
-                              wide_lower = NULL,
-                              wide_upper = NULL,
-                              labels = NULL, 
-                              xlab = "Parameter estimate",
-                              main = NULL,
-                              order = FALSE,
-                              xlog = FALSE,
-                              mean_line = NULL) {
+plot_coefficients <- function(
+  midpoint,
+  narrow_lower,
+  narrow_upper,
+  wide_lower = NULL,
+  wide_upper = NULL,
+  rainfall_zone = NULL,
+  labels = NULL, 
+  xlab = "Parameter estimate",
+  main = NULL,
+  order = FALSE,
+  xlog = FALSE,
+  mean_line = NULL,
+  group = FALSE
+) {
   
-  # reset margins, saving old margins
+  # set a default colour palette and update if
+  #   rainfall zones are specified
+  col_pal <- rep("black", length(midpoint))
+  include_legend <- FALSE
+  if (!is.null(rainfall_zone)) {
+    col_pal <- RColorBrewer::brewer.pal(nlevels(rainfall_zone), name = "Set2")
+    col_pal_expanded <- col_pal[as.integer(rainfall_zone)]
+    include_legend <- TRUE
+  }
+  
+  # reset margins, saving old margins and including room for legend if required
   old_mar <- par()$mar
-  par(mar = c(5.2, 11.2, 2.1, 1.1))
+  par(mar = c(3.8, 11.5, 1.8, 0.5))
   
   # what if labels aren't provided?
   if (is.null(labels))
@@ -293,6 +346,7 @@ plot_coefficients <- function(midpoint,
       wide_upper <- wide_upper[idx]
     }
     labels <- labels[idx]
+    col_pal_expanded <- col_pal_expanded[idx]
   }
   
   # do we need to exponentiate everything?
@@ -319,6 +373,7 @@ plot_coefficients <- function(midpoint,
        cex = 1.25,
        bty = "l",
        las = 1,
+       col = col_pal_expanded,
        xlab = "",
        ylab = "",
        xaxt = "n",
@@ -326,9 +381,9 @@ plot_coefficients <- function(midpoint,
   
   # and add the credible intervals
   for (i in xsub) {
-    lines(c(narrow_lower[i], narrow_upper[i]), c(i, i), lty = 1, lwd = 3.5)
+    lines(c(narrow_lower[i], narrow_upper[i]), c(i, i), lty = 1, lwd = 3.5, col = col_pal_expanded[i])
     if (!is.null(wide_lower) & !is.null(wide_upper))
-      lines(c(wide_lower[i], wide_upper[i]), c(i, i), lty = 1, lwd = 1.5)
+      lines(c(wide_lower[i], wide_upper[i]), c(i, i), lty = 1, lwd = 1.5, col = col_pal_expanded[i])
   }
   
   # plus a zero line
@@ -343,11 +398,15 @@ plot_coefficients <- function(midpoint,
   axis(2, at = xsub, labels = labels, las = 1, cex.axis = 0.75)
   
   # and x-axis label
-  mtext(xlab, side = 1, line = 2.8, adj = 0.5, cex = 1)
+  mtext(xlab, side = 1, line = 2.8, adj = 0.5, cex = 0.9)
   
   # add a main label if required
   if (!is.null(main))
-    mtext(main, side = 3, line = 0, adj = 1, cex = 1.1)
+    mtext(main, side = 3, line = 0, adj = 0, cex = 1)
+  
+  # and legend if required
+  if (include_legend & !group) 
+    legend(x = "right", legend = unique(rainfall_zone), fill = col_pal)
   
   # reset margins
   par(mar = old_mar)
@@ -366,9 +425,50 @@ format_name <- function(x) {
   
 }
 
+# function to load and tidy rainfall zone data
+load_rainfall_zones <- function(x) {
+  x <- read_xlsx(x, col_names = c("species", "zone"), skip = 1)
+  x <- x %>% mutate(
+    zone = gsub("600-799", "600-800", zone),
+    zone = factor(
+      zone,
+      levels = c("200-400", "400-600", "600-799", "600-800", "800-1000", ">1000"),
+      labels = c("200-400", "400-600", "600-800", "600-800", "800-1000", ">1000")
+    ),
+    species = gsub("subsp. ", "", species),
+    species = gsub("subsp.", "", species),
+    species = gsub(" ", ".", species),
+    species = gsub("glossosemma", "glossosema", species),
+    species = gsub("lutiefolium", "luteifolium", species),
+    species = gsub("althoferorum", "althroferorum", species),
+    species = gsub("Hemigenia", "Hemegenia", species),
+    species = gsub("gnaphaloides", "gnaphalioides", species)
+  )
+  x
+}
 
-# plot variance components
-#  - use something like:
-#      VarCorr(model)$species$sd
-#      VarCorr(model)$source_population$sd
-#      VarCorr(model)$site$sd
+# function to plot rainfall predictors against watering treatment to
+#   check for issues with unbalanced data collection
+check_watering_balance <- function(
+  dat) {
+  
+  # set up plot if all are grouped
+  png(file = "outputs/figures/watering-balance.png", width = 12, height = 12, units = "in", pointsize = 16, res = 300)
+
+  # set up plot device
+  par(mfrow = c(2, 2), mar = c(4.5, 4.5, 1.5, 1.1))
+  
+  # plot it
+  hist(dat$rainfall_deviation_mm[dat$management_water == "Yes"], main = "", xlab = "Rainfall deviation (mm)", las = 1)
+  mtext("Rainfall deviation (watered)", side = 3, line = 0, adj = 0)
+  hist(dat$rainfall_deviation_mm[dat$management_water == "No"], main = "", xlab = "Rainfall deviation (mm)", las = 1)
+  mtext("Rainfall deviation (unwatered)", side = 3, line = 0, adj = 0)
+  hist(dat$rainfall_30days_prior_mm[dat$management_water == "Yes"], main = "", xlab = "Prior rainfall (mm)", las = 1)
+  mtext("Rainfall prior (watered)", side = 3, line = 0, adj = 0)
+  hist(dat$rainfall_30days_prior_mm[dat$management_water == "No"], main = "", xlab = "Prior rainfall (mm)", las = 1)
+  mtext("Rainfall prior (unwatered)", side = 3, line = 0, adj = 0)
+  
+  # close plotting device
+  dev.off()
+  
+}
