@@ -236,34 +236,39 @@ plot_models <- drake_plan(
   height_growth_model = readd(height_growth_model),
   crown_growth_model = readd(crown_growth_model),
   
+  # load rainfall zones
+  species_rainfall_zones = load_rainfall_zones(
+    file_in("data/raw/Species_rainfall zones.xlsx")
+  ),
+
   # run some posterior predictive checks and save outputs to files
   survival_checks = posterior_checks(
     survival_model,
     type = c("dens_overlay", "error_hist"),
-    file = c(file_out("outputs/figures/survival_pp_checks_dens.jpg"),
-             file_out("outputs/figures/survival_pp_checks_hist.jpg")),
+    file = c(file_out("outputs/figures/survival_pp_checks_dens.png"),
+             file_out("outputs/figures/survival_pp_checks_hist.png")),
     nsamples = 20
   ),
   reproduction_checks = posterior_checks(
     reproduction_model,
     type = c("bars", "bars_grouped"),
-    file = c(file_out("outputs/figures/reproduction_pp_checks_bars.jpg"),
-             file_out("outputs/figures/reproduction_pp_checks_bars_grouped.jpg")),
+    file = c(file_out("outputs/figures/reproduction_pp_checks_bars.png"),
+             file_out("outputs/figures/reproduction_pp_checks_bars_grouped.png")),
     nsamples = 20,
     group = "species"
   ),
   height_growth_checks = posterior_checks(
     height_growth_model,
     type = c("dens_overlay", "error_hist"),
-    file = c(file_out("outputs/figures/height_growth_pp_checks_dens.jpg"),
-             file_out("outputs/figures/height_growth_pp_checks_hist.jpg")),
+    file = c(file_out("outputs/figures/height_growth_pp_checks_dens.png"),
+             file_out("outputs/figures/height_growth_pp_checks_hist.png")),
     nsamples = 20
   ),
   crown_growth_checks = posterior_checks(
     crown_growth_model,
     type = c("dens_overlay", "error_hist"),
-    file = c(file_out("outputs/figures/crown_growth_pp_checks_dens.jpg"),
-             file_out("outputs/figures/crown_growth_pp_checks_hist.jpg")),
+    file = c(file_out("outputs/figures/crown_growth_pp_checks_dens.png"),
+             file_out("outputs/figures/crown_growth_pp_checks_hist.png")),
     nsamples = 20
   ),
   
@@ -279,22 +284,60 @@ plot_models <- drake_plan(
                "rainfall_30days_prior_std",
                "management_waterYes",
                "management_fenceYes"),
-  surv_files = sapply(paste0("outputs/figures/survival-", var_list, ".jpg"),
+  surv_files = sapply(paste0("outputs/figures/survival-", var_list, ".png"),
                       file_out),
-  reprod_files = sapply(paste0("outputs/figures/reproduction-", var_list, ".jpg"),
+  reprod_files = sapply(paste0("outputs/figures/reproduction-", var_list, ".png"),
                         file_out),
-  hgrow_files = sapply(paste0("outputs/figures/height-growth-", var_list, ".jpg"),
+  hgrow_files = sapply(paste0("outputs/figures/height-growth-", var_list, ".png"),
                        file_out),
-  cgrow_files = sapply(paste0("outputs/figures/crown-growth-", var_list, ".jpg"),
+  cgrow_files = sapply(paste0("outputs/figures/crown-growth-", var_list, ".png"),
                        file_out),
-  surv_coef_plots = plot_model(survival_model, var_list, surv_files, order = TRUE, xlog = FALSE),
-  reprod_coef_plots = plot_model(reproduction_model, var_list, reprod_files, order = TRUE, xlog = TRUE),
-  hgrow_coef_plots = plot_model(height_growth_model, var_list, hgrow_files, order = TRUE, xlog = TRUE),
-  cgrow_coef_plots = plot_model(crown_growth_model, var_list, cgrow_files, order = TRUE, xlog = TRUE),
+  surv_coef_plots = plot_model(
+    survival_model, 
+    var_list, 
+    surv_files, 
+    rainfall_zone = species_rainfall_zones,
+    order = TRUE, 
+    xlog = FALSE,
+    group = TRUE
+  ),
+  reprod_coef_plots = plot_model(
+    reproduction_model,
+    var_list, 
+    reprod_files, 
+    rainfall_zone = species_rainfall_zones,
+    order = TRUE, 
+    xlog = TRUE,
+    group = TRUE
+  ),
+  hgrow_coef_plots = plot_model(
+    height_growth_model, 
+    var_list, 
+    hgrow_files, 
+    rainfall_zone = species_rainfall_zones,
+    order = TRUE, 
+    xlog = TRUE,
+    group = TRUE
+  ),
+  cgrow_coef_plots = plot_model(
+    crown_growth_model,
+    var_list, 
+    cgrow_files, 
+    rainfall_zone = species_rainfall_zones,
+    order = TRUE, 
+    xlog = TRUE,
+    group = TRUE
+  ),
   
   # plot survival curves
-  survival_curve_plots = plot_survival_treatments(survival_model,
-                                                  filepath = "outputs/figures/survival-treatment"),
+  # survival_curve_plots = plot_survival_treatments(
+  #   survival_model,
+  #   filepath = "outputs/figures/survival-treatment"
+  # ),
+  
+  # plot histograms of rainfall deviation against watering treatment
+  survival_data = qread(file_in("data/compiled/survival-data.qs")),
+  check_watering_balance(survival_data),
   
 )
 
