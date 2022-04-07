@@ -342,7 +342,7 @@ plot_models <- drake_plan(
     file = "outputs/figures/rainfall_deviation-effects.png",
     rainfall_zone = species_rainfall_zones, 
     order = TRUE, 
-    xlog = c(FALSE, rep(TRUE, 3))
+    model_names = c("Survival", "Reproduction", "Height growth", "Crown growth")
   ),
   rainfall_prior_plot = plot_variable(
     model_list,
@@ -350,7 +350,7 @@ plot_models <- drake_plan(
     file = "outputs/figures/rainfall_prior-effects.png",
     rainfall_zone = species_rainfall_zones, 
     order = TRUE, 
-    xlog = c(FALSE, rep(TRUE, 3))
+    model_names = c("Survival", "Reproduction", "Height growth", "Crown growth")
   ),
   management_water_plot = plot_variable(
     model_list,
@@ -358,7 +358,7 @@ plot_models <- drake_plan(
     file = "outputs/figures/management_water-effects.png",
     rainfall_zone = species_rainfall_zones, 
     order = TRUE, 
-    xlog = c(FALSE, rep(TRUE, 3))
+    model_names = c("Survival", "Reproduction", "Height growth", "Crown growth")
   ),
   management_fence_plot = plot_variable(
     model_list,
@@ -366,7 +366,7 @@ plot_models <- drake_plan(
     file = "outputs/figures/management_fence-effects.png",
     rainfall_zone = species_rainfall_zones, 
     order = TRUE, 
-    xlog = c(FALSE, rep(TRUE, 3))
+    model_names = c("Survival", "Reproduction", "Height growth", "Crown growth")
   ),
   
   # plot histograms of rainfall deviation against watering treatment

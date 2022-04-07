@@ -307,7 +307,7 @@ plot_variable <- function(
   file,
   rainfall_zone = NULL, 
   order = FALSE, 
-  xlog = rep(FALSE, length(model_list))
+  model_names = letters[seq_len(model_list)]
 ) {
   
   # set up plot if all are grouped
@@ -318,7 +318,7 @@ plot_variable <- function(
   for (i in seq_along(model_list)) {
     
     # get coefficients
-    vals <- extract_coefficients(model_list[i], var)
+    vals <- extract_coefficients(model_list[[i]], var)
     
     # grab relevant rainfall zones if provided
     if (!is.null(rainfall_zone))
@@ -329,11 +329,8 @@ plot_variable <- function(
     sp_names <- vals$species
     sp_names <- gsub("\\.", " ", sp_names)
     
-    # do we want to exponentiate the x-axis? (yes if intercepts in some models)
-    log_x <- xlog[i]
-
     # calculate mean line (i.e. shared mean for all species)
-    mean_line <- fixef(model_list[i])[var, "Estimate"]
+    mean_line <- fixef(model_list[[i]])[var, "Estimate"]
     
     # plot it
     plot_coefficients(
@@ -342,11 +339,11 @@ plot_variable <- function(
       vals$coef.lower_0.95, vals$coef.upper_0.95,
       rainfall_zone = rainfall_sub,
       labels = sp_names, 
-      main = var_name, 
+      main = model_names[i], 
       order = order, 
-      xlog = log_x,
+      xlog = FALSE,
       mean_line = mean_line,
-      group = group
+      group = TRUE
     )
 
   }
