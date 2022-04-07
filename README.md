@@ -1,19 +1,25 @@
-# Analysis of plant translocations in Western Australia
+# Analysis of plant translocations outcomes under different management strategies and climates
 
 ## Overview
 
 This directory contains data and scripts to analyse survival, growth, and reproductive success of plant species translocated in Western Australia.
 
-Last updated: 10 January 2020
+Last updated: 7 April 2022
+
+## Abstract
+
+To be added.
 
 
 ## Usage
 
-All analysis scripts are contained in the `analysis` directory, numbered in order of use (00-0X). Additional R files (*helper functions*) are in the `R` directory. All data are contained in the `data` directory, with raw .xls/.xlsx files in the `raw` sub-directory and files converted to CSVs or `.rds` objects stored in the `converted` sub-directory. Data objects prepared for specific analyses are stored in the `data/compiled` sub-directory. 
+The full analysis is contained in the `main.R` script, with helper functions in the `R` directory. The analysis uses the `drake` R package for workflow management.
+
+Raw and compiled data data files are required to recreate the analysis and will be uploaded following publication. 
 
 
 ## Contacts
 
 Project lead and data: Leonie Monks 
-Analysis: Jian Yen (jdl.yen@gmail.com), Peter Vesk (pvesk@unimelb.edu.au)
+Analysis: Jian Yen (jdl.yen@gmail.com)
 
