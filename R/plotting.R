@@ -300,6 +300,65 @@ plot_model <- function(
   
 }
 
+# plot coefficients from a fitted brms model
+plot_variable <- function(
+  model_list,
+  var,
+  file,
+  rainfall_zone = NULL, 
+  order = FALSE, 
+  xlog = rep(FALSE, length(model_list))
+) {
+  
+  # set up plot if all are grouped
+  png(file = file, width = 12, height = 2.25 * 6, units = "in", pointsize = 16, res = 300)
+  layout(rbind(matrix(1:4, nrow = 2, byrow = TRUE), rep(5, 2)), heights = c(1, 1, 0.15))
+  
+  # loop through each variable of interest and create a forest plot of coefficients
+  for (i in seq_along(model_list)) {
+    
+    # get coefficients
+    vals <- extract_coefficients(model_list[i], var)
+    
+    # grab relevant rainfall zones if provided
+    if (!is.null(rainfall_zone))
+      rainfall_sub <- rainfall_zone$zone[match(vals$species, rainfall_zone$species)]
+    
+    # get the species and variable names correct
+    var_name <- format_name(var)
+    sp_names <- vals$species
+    sp_names <- gsub("\\.", " ", sp_names)
+    
+    # do we want to exponentiate the x-axis? (yes if intercepts in some models)
+    log_x <- xlog[i]
+
+    # calculate mean line (i.e. shared mean for all species)
+    mean_line <- fixef(model_list[i])[var, "Estimate"]
+    
+    # plot it
+    plot_coefficients(
+      vals$coef,
+      vals$coef.lower_0.8, vals$coef.upper_0.8, 
+      vals$coef.lower_0.95, vals$coef.upper_0.95,
+      rainfall_zone = rainfall_sub,
+      labels = sp_names, 
+      main = var_name, 
+      order = order, 
+      xlog = log_x,
+      mean_line = mean_line,
+      group = group
+    )
+
+  }
+  
+  par(mar = rep(0, 4))
+  plot(c(0, 1) ~ c(0, 1), bty = "n", xaxt = "n", yaxt = "n", xlab = "", ylab = "", type = "n")
+  col_pal <- RColorBrewer::brewer.pal(nlevels(rainfall_sub), name = "Set2")
+  legend(x = "center", legend = unique(rainfall_sub), fill = col_pal, horiz = TRUE, cex = 1.5)
+  dev.off()
+  
+}
+
 # internal function used in plot_model
 plot_coefficients <- function(
   midpoint,

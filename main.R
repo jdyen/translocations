@@ -328,12 +328,46 @@ plot_models <- drake_plan(
     xlog = TRUE,
     group = TRUE
   ),
-  
-  # plot survival curves
-  # survival_curve_plots = plot_survival_treatments(
-  #   survival_model,
-  #   filepath = "outputs/figures/survival-treatment"
-  # ),
+
+  # recreate plots but by variable rather than response
+  model_list = list(
+    survival_model,
+    reproduction_model,
+    height_growth_model,
+    crown_growth_model
+  ),
+  rainfall_deviation_plot = plot_variable(
+    model_list,
+    var = "rainfall_deviation_std",
+    file = "outputs/figures/rainfall_deviation-effects.png",
+    rainfall_zone = species_rainfall_zones, 
+    order = TRUE, 
+    xlog = c(FALSE, rep(TRUE, 3))
+  ),
+  rainfall_prior_plot = plot_variable(
+    model_list,
+    var = "rainfall_30days_prior_std",
+    file = "outputs/figures/rainfall_prior-effects.png",
+    rainfall_zone = species_rainfall_zones, 
+    order = TRUE, 
+    xlog = c(FALSE, rep(TRUE, 3))
+  ),
+  management_water_plot = plot_variable(
+    model_list,
+    var = "management_waterYes",
+    file = "outputs/figures/management_water-effects.png",
+    rainfall_zone = species_rainfall_zones, 
+    order = TRUE, 
+    xlog = c(FALSE, rep(TRUE, 3))
+  ),
+  management_fence_plot = plot_variable(
+    model_list,
+    var = "management_fenceYes",
+    file = "outputs/figures/management_fence-effects.png",
+    rainfall_zone = species_rainfall_zones, 
+    order = TRUE, 
+    xlog = c(FALSE, rep(TRUE, 3))
+  ),
   
   # plot histograms of rainfall deviation against watering treatment
   survival_data = qread(file_in("data/compiled/survival-data.qs")),
