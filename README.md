@@ -16,6 +16,7 @@ Raw and compiled data data files are required to recreate the analysis and will 
 
 ## Contacts
 
-Project lead and data: Leonie Monks 
+Project lead and data: Leonie Monks
+
 Analysis: Jian Yen (jdl.yen@gmail.com)
 
