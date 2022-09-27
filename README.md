@@ -2,13 +2,9 @@
 
 ## Overview
 
-This directory contains data and scripts to analyse survival, growth, and reproductive success of plant species translocated in Western Australia.
+This directory contains data and scripts to analyse survival, growth, and reproductive success of plant species translocated in Western Australia. These files are supporting information for Analysis of two decades of threatened plant translocations in the biodiversity hotspot of southwestern Australia, intended for submission to Plant Ecology.
 
-Last updated: 7 April 2022
-
-## Abstract
-
-To be added.
+Last updated: 27 September 2022
 
 
 ## Usage
