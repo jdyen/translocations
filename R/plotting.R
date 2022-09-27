@@ -451,7 +451,7 @@ plot_coefficients <- function(
   
   # and some axes  
   axis(1)
-  axis(2, at = xsub, labels = labels, las = 1, cex.axis = 0.75)
+  axis(2, at = xsub, labels = labels, las = 1, cex.axis = 0.7)
   
   # and x-axis label
   mtext(xlab, side = 1, line = 2.8, adj = 0.5, cex = 0.9)
